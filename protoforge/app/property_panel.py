@@ -36,7 +36,12 @@ class PropertyPanel(QWidget):
         self.size_spin.setRange(1, 65535)
         self.const_edit = QLineEdit()
         self.const_edit.setPlaceholderText("如 0x5A5A（留空不校验）")
-        self.crc_check = QCheckBox("CRC-16/CCITT-FALSE 校验字段（须为末尾 uint16）")
+        self.crc_combo = QComboBox()
+        self.crc_combo.addItems(["（无）", "ccitt_false", "modbus", "xmodem", "sum8", "sum16"])
+        self.term_check = QCheckBox("终止符字符串")
+        self.term_spin = QSpinBox()
+        self.term_spin.setRange(0, 255)
+        self.term_spin.setValue(0)
         self.byte_order_combo = QComboBox()
         self.byte_order_combo.addItems(["（协议默认）", "big", "little"])
         self.length_from_combo = QComboBox()
@@ -60,7 +65,9 @@ class PropertyPanel(QWidget):
         form.addRow("长度 (字节)", self.size_spin)
         form.addRow("长度来源字段", self.length_from_combo)
         form.addRow("常量校验", self.const_edit)
-        form.addRow(self.crc_check)
+        form.addRow("校验和（须为末尾字段）", self.crc_combo)
+        form.addRow(self.term_check)
+        form.addRow("终止符字节", self.term_spin)
         form.addRow("枚举表", self.enum_edit)
         form.addRow("switch 依据", self.on_combo)
         form.addRow("数组计数", self.count_mode)
@@ -78,7 +85,9 @@ class PropertyPanel(QWidget):
         self.display_combo.currentIndexChanged.connect(self._apply)
         for w in (self.width_spin, self.size_spin, self.count_spin):
             w.valueChanged.connect(self._apply)
-        self.crc_check.toggled.connect(self._apply)
+        self.crc_combo.currentIndexChanged.connect(self._apply)
+        self.term_check.toggled.connect(self._apply)
+        self.term_spin.valueChanged.connect(self._apply)
         self.enum_edit.textChanged.connect(self._apply)
         self.on_combo.currentIndexChanged.connect(self._apply)
         self.count_mode.currentIndexChanged.connect(self._apply)
@@ -117,7 +126,10 @@ class PropertyPanel(QWidget):
         self.width_spin.setValue(field.width or 1)
         self.size_spin.setValue(field.size or 1)
         self.const_edit.setText(field.const or "")
-        self.crc_check.setChecked(bool(field.crc16))
+        self.crc_combo.setCurrentIndex(
+            ["", "ccitt_false", "modbus", "xmodem", "sum8", "sum16"].index(field.crc16 or "") if field.crc16 else 0)
+        self.term_check.setChecked(field.terminated_by is not None)
+        self.term_spin.setValue(field.terminated_by or 0)
         self.enum_edit.setPlainText(_enum_to_text(field.enum))
         if field.on:
             self.on_combo.setCurrentText(field.on)
@@ -154,8 +166,14 @@ class PropertyPanel(QWidget):
                 f.length_from, f.size = lf, 0
             else:
                 f.length_from, f.size = None, self.size_spin.value()
+        f.crc16 = ["", "ccitt_false", "modbus", "xmodem", "sum8", "sum16"][
+            self.crc_combo.currentIndex()] or None
+        if t == "string" and self.term_check.isChecked():
+            f.terminated_by = self.term_spin.value()
+            f.size, f.length_from = 0, None
+        elif f.terminated_by is not None:
+            f.terminated_by = None
         f.const = self.const_edit.text().strip() or None
-        f.crc16 = "ccitt_false" if self.crc_check.isChecked() else None
         try:
             f.enum = _parse_enum(self.enum_edit.toPlainText())
         except ValueError:

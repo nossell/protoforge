@@ -211,28 +211,78 @@ class Generator:
         self.w()
 
     def _crc_helper(self):
-        if not any(f.crc16 for f in walk(self.p.fields)):
+        algos = {f.crc16 for f in walk(self.p.fields) if f.crc16}
+        if not algos:
             return
-        self.w("-- CRC-16/CCITT-FALSE（poly 0x1021, init 0xFFFF）")
-        self.w("local function crc16_ccitt(bytes, from, to)")
+        if "ccitt_false" in algos:
+            self.w("-- CRC-16/CCITT-FALSE（poly 0x1021, init 0xFFFF）")
+            self.w("local function crc16_ccitt(bytes, from, to)")
+            self._emit_crc_body(init="0xFFFF", msb=True)
+        if "xmodem" in algos:
+            self.w("-- CRC-16/XMODEM（poly 0x1021, init 0x0000）")
+            self.w("local function crc16_xmodem(bytes, from, to)")
+            self._emit_crc_body(init="0x0000", msb=True)
+        if "modbus" in algos:
+            self.w("-- CRC-16/MODBUS（reflected, poly 0xA001, init 0xFFFF，传输低字节在前）")
+            self.w("local function crc16_modbus(bytes, from, to)")
+            self._emit_crc_body(init="0xFFFF", msb=False)
+        if "sum8" in algos:
+            self.w("-- 8 位累加和")
+            self.w("local function checksum_sum8(bytes, from, to)")
+            self.i += 1
+            self.w("local s = 0")
+            self.w("for i = from, to do s = (s + bytes:get_index(i)) & 0xFF end")
+            self.w("return s")
+            self.i -= 1
+            self.w("end")
+            self.w()
+        if "sum16" in algos:
+            self.w("-- 16 位累加和")
+            self.w("local function checksum_sum16(bytes, from, to)")
+            self.i += 1
+            self.w("local s = 0")
+            self.w("for i = from, to do s = (s + bytes:get_index(i)) & 0xFFFF end")
+            self.w("return s")
+            self.i -= 1
+            self.w("end")
+            self.w()
+
+    def _emit_crc_body(self, init: str, msb: bool):
+        """发射 CRC16 函数体（已发出函数签名行）。msb=True 为逐位左移式，False 为反射式。"""
         self.i += 1
-        self.w("local crc = 0xFFFF")
+        self.w(f"local crc = {init}")
         self.w("for i = from, to do")
         self.i += 1
-        self.w("crc = (crc ~ (bytes:get_index(i) << 8)) & 0xFFFF")
-        self.w("for _ = 1, 8 do")
-        self.i += 1
-        self.w("if (crc & 0x8000) ~= 0 then")
-        self.i += 1
-        self.w("crc = ((crc << 1) ~ 0x1021) & 0xFFFF")
-        self.i -= 1
-        self.w("else")
-        self.i += 1
-        self.w("crc = (crc << 1) & 0xFFFF")
-        self.i -= 1
-        self.w("end")
-        self.i -= 1
-        self.w("end")
+        if msb:
+            self.w("crc = (crc ~ (bytes:get_index(i) << 8)) & 0xFFFF")
+            self.w("for _ = 1, 8 do")
+            self.i += 1
+            self.w("if (crc & 0x8000) ~= 0 then")
+            self.i += 1
+            self.w("crc = ((crc << 1) ~ 0x1021) & 0xFFFF")
+            self.i -= 1
+            self.w("else")
+            self.i += 1
+            self.w("crc = (crc << 1) & 0xFFFF")
+            self.i -= 1
+            self.w("end")
+            self.i -= 1
+            self.w("end")
+        else:
+            self.w("crc = (crc ~ bytes:get_index(i)) & 0xFFFF")
+            self.w("for _ = 1, 8 do")
+            self.i += 1
+            self.w("if (crc & 1) ~= 0 then")
+            self.i += 1
+            self.w("crc = (crc >> 1) ~ 0xA001")
+            self.i -= 1
+            self.w("else")
+            self.i += 1
+            self.w("crc = crc >> 1")
+            self.i -= 1
+            self.w("end")
+            self.i -= 1
+            self.w("end")
         self.i -= 1
         self.w("end")
         self.w("return crc")
@@ -273,7 +323,27 @@ class Generator:
                     self.w("end")
                 self.w(f"off = off + {size}")
             elif f.type in ("string", "bytes"):
-                if f.length_from:
+                if f.terminated_by is not None:
+                    n = f"n_{nm}"
+                    tb = int(f.terminated_by)
+                    self.w(f"local {n} = 0")
+                    self.w(f"while off + {n} < len and buffer(off + {n}, 1):uint() ~= {tb} do")
+                    self.i += 1
+                    self.w(f"{n} = {n} + 1")
+                    self.i -= 1
+                    self.w("end")
+                    self.w(f"local it_{nm} = {parent}:add(pf_{nm}, buffer(off, {n}))")
+                    self.w(f"if off + {n} < len then")
+                    self.i += 1
+                    self.w(f"{n} = {n} + 1")          # 跳过终止符
+                    self.i -= 1
+                    self.w("else")
+                    self.i += 1
+                    self.w(f'it_{nm}:append_text(" (unterminated)")')
+                    self.i -= 1
+                    self.w("end")
+                    self.w(f"off = off + {n}")
+                elif f.length_from:
                     n = f"n_{nm}"
                     self.w(f"local {n} = v_{f.length_from}")
                     self.w(f"if off + {n} > len then")
@@ -337,9 +407,14 @@ class Generator:
 
     def _emit_crc(self, f: Field):
         nm = f.name
-        self.w(f"local v_{nm} = buffer(off, 2):uint()")
-        self.w(f"local c_{nm} = crc16_ccitt(buffer:bytes(), 0, off - 1)")
-        self.w(f"local it_{nm} = st:add(pf_{nm}, buffer(off, 2))")
+        algo = f.crc16
+        csize = 1 if algo == "sum8" else 2
+        le = "le_" if algo == "modbus" else ""
+        self.w(f"local v_{nm} = buffer(off, {csize}):{le}uint()")
+        fn = {"ccitt_false": "crc16_ccitt", "xmodem": "crc16_xmodem", "modbus": "crc16_modbus",
+              "sum8": "checksum_sum8", "sum16": "checksum_sum16"}[algo]
+        self.w(f"local c_{nm} = {fn}(buffer:bytes(), 0, off - 1)")
+        self.w(f"local it_{nm} = st:add(pf_{nm}, buffer(off, {csize}))")
         self.w(f"if c_{nm} == v_{nm} then")
         self.i += 1
         self.w(f'it_{nm}:append_text(" [correct]")')
@@ -350,7 +425,7 @@ class Generator:
         self.w(f'st:add_proto_expert_info(pe_crc_bad, string.format("got 0x%04X, computed 0x%04X", v_{nm}, c_{nm}))')
         self.i -= 1
         self.w("end")
-        self.w("off = off + 2")
+        self.w(f"off = off + {csize}")
 
     def _dissector(self):
         fields = self.p.fields

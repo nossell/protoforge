@@ -24,6 +24,7 @@ def _parse_field(d: dict) -> Field:
         crc16=d.get("crc16"),
         byte_order=d.get("byte_order"),
         length_from=d.get("length_from"),
+        terminated_by=d.get("terminated_by"),
     )
     if d.get("enum"):
         f.enum = {int(k, 0) if isinstance(k, str) else int(k): str(v) for k, v in d["enum"].items()}
@@ -62,6 +63,8 @@ def _field_to_dict(f: Field) -> dict:
         d["byte_order"] = f.byte_order
     if f.length_from:
         d["length_from"] = f.length_from
+    if f.terminated_by is not None:
+        d["terminated_by"] = f.terminated_by
     return d
 
 

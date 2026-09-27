@@ -89,7 +89,7 @@ def test_crc_must_be_last():
 
 def test_crc_must_be_uint16():
     p = make_proto([Field("crc", type="uint32", crc16="ccitt_false")])
-    assert any("必须是 uint16" in e for e in validate(p))
+    assert any("要求字段类型" in e for e in validate(p))
 
 
 def test_string_needs_size():

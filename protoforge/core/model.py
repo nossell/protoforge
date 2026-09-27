@@ -15,6 +15,11 @@ VALID_TYPES = set(PRIM_SIZES) | {"uint", "string", "bytes", "switch", "array"}
 VALID_DISPLAYS = {"dec", "hex"}
 VALID_TABLES = {"udp.port", "tcp.port"}
 VALID_BYTE_ORDERS = {"big", "little"}
+# 校验和算法 → 必需的字段类型
+CHECKSUM_TYPES = {
+    "ccitt_false": "uint16", "modbus": "uint16", "xmodem": "uint16",
+    "sum16": "uint16", "sum8": "uint8",
+}
 NAME_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
 
@@ -37,9 +42,10 @@ class Field:
     count: Optional[int] = None    # array：固定次数
     count_from: Optional[str] = None                  # array：次数来源字段名
     element: Optional[list] = None                    # array：元素字段列表
-    crc16: Optional[str] = None    # "ccitt_false"
+    crc16: Optional[str] = None    # 校验和算法：ccitt_false/modbus/xmodem/sum8/sum16
     byte_order: Optional[str] = None                  # 覆盖协议默认字节序（数值字段）
     length_from: Optional[str] = None                 # string/bytes/array：区域长度来源字段名
+    terminated_by: Optional[int] = None               # string：终止符字节（如 0x00）
 
 
 @dataclass
@@ -146,11 +152,11 @@ def static_size(fields: list) -> int:
             continue  # 打包组字节数在下方统一计入
         if f.type == "switch":
             raise ValidationError(f"静态布局中出现可变结构: {f.name}")
-        if f.type == "array":
-            if f.length_from:
-                continue  # 变长区域按最小 0 贡献计入
+        if f.type == "array" and not f.length_from:
             raise ValidationError(f"静态布局中出现可变结构: {f.name}")
-        if f.type in ("string", "bytes") and f.length_from:
+        if f.type == "array" and f.length_from:
+            continue  # 变长区域按最小 0 贡献计入
+        if f.type in ("string", "bytes") and (f.length_from or f.terminated_by is not None):
             continue  # 变长字段按最小 0 贡献计入
         s = field_size(f)
         if s is None:
@@ -173,8 +179,9 @@ def validate(p: Protocol) -> list:
             return
         if f.type == "uint" and not (1 <= f.width < 8):
             errors.append(f"{where}/{f.name}: bitfield 需 width 1-7")
-        if f.type in ("string", "bytes") and f.size < 1 and f.length_from is None:
-            errors.append(f"{where}/{f.name}: {f.type} 需要定长 size >= 1 或指定 length_from")
+        if f.type in ("string", "bytes") and f.size < 1 and f.length_from is None \
+                and f.terminated_by is None:
+            errors.append(f"{where}/{f.name}: {f.type} 需要定长 size / length_from / terminated_by 之一")
         if f.display not in VALID_DISPLAYS:
             errors.append(f"{where}/{f.name}: display 只能是 dec/hex")
         if f.enum is not None:
@@ -203,6 +210,15 @@ def validate(p: Protocol) -> list:
             errors.append(f"{where}/{f.name}: size 与 length_from 只能二选一")
         if f.type == "uint" and f.length_from is not None:
             errors.append(f"{where}/{f.name}: length_from 不适用于位域")
+        if f.terminated_by is not None:
+            if f.type != "string":
+                errors.append(f"{where}/{f.name}: terminated_by 仅支持 string 字段")
+            elif isinstance(f.terminated_by, bool) or not isinstance(f.terminated_by, int) \
+                    or not (0 <= f.terminated_by <= 255):
+                errors.append(f"{where}/{f.name}: terminated_by 必须是 0-255 的整数")
+        if f.type == "string" and f.terminated_by is not None \
+                and (f.size >= 1 or f.length_from is not None):
+            errors.append(f"{where}/{f.name}: string 的 size / length_from / terminated_by 只能三选一")
 
     def check_list(fields: list, where: str, visible: dict, top_level: bool):
         """visible: 进入本列表时可见的字段名→Field（外层作用域继承）。
@@ -313,15 +329,19 @@ def validate(p: Protocol) -> list:
     # 位域边界
     _scan_bit_groups(p.fields, errors, "顶层")
 
-    # crc 约定：必须是最后一个顶层字段且类型 uint16
+    # crc 约定：必须是最后一个顶层字段且类型与算法匹配
     crcs = [f for f in p.fields if f.crc16]
     if crcs:
         last = p.fields[-1] if p.fields else None
         if last is None or not last.crc16:
             errors.append("crc16 字段必须是最后一个顶层字段")
         for f in crcs:
-            if f.type != "uint16":
-                errors.append(f"crc16 字段 '{f.name}' 必须是 uint16")
+            required = CHECKSUM_TYPES.get(f.crc16 or "")
+            if required is None:
+                errors.append(f"不支持的校验和算法 '{f.crc16}'"
+                              f"（可选：{'/'.join(sorted(CHECKSUM_TYPES))}）")
+            elif f.type != required:
+                errors.append(f"校验和 '{f.crc16}' 要求字段类型 {required}（当前 {f.type}）")
 
     # length_check 引用：必须是顶层数值字段
     if p.length_check:
