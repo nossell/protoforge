@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ProtoForge 协议定义 Schema 参考</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@300;400;600&display=swap');
+:root{
+  --text:#161616; --text-2:#525252; --text-3:#6f6f6f;
+  --bg:#ffffff; --surface:#f4f4f4;
+  --border:#e0e0e0; --border-strong:#c6c6c6;
+  --accent:#0f62fe; --accent-hover:#0043ce; --tint:#edf5ff; --tint-2:#d0e2ff;
+  --sans:'IBM Plex Sans',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+  --mono:'IBM Plex Mono',ui-monospace,Menlo,Consolas,monospace;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15px;line-height:1.7;
+  -webkit-font-smoothing:antialiased}
+.topbar{position:sticky;top:0;z-index:5;background:#fff;border-bottom:1px solid var(--border)}
+.topbar .in{max-width:880px;margin:0 auto;padding:0 24px;height:48px;display:flex;align-items:center;gap:14px}
+.topbar a{font-size:13px;color:var(--text-2);text-decoration:none}
+.topbar a:hover{color:var(--accent)}
+.topbar .brand{font-size:14px;font-weight:600;color:var(--text)}
+.topbar .crumb{border-left:1px solid var(--border-strong);padding-left:14px}
+main{max-width:880px;margin:0 auto;padding:40px 24px 96px}
+h1{font-size:34px;font-weight:300;letter-spacing:-.7px;line-height:1.2;margin:20px 0 8px}
+h2{font-size:24px;font-weight:400;letter-spacing:-.2px;margin:56px 0 12px;padding-top:12px;border-top:1px solid var(--border)}
+h3{font-size:17px;font-weight:600;margin:32px 0 8px}
+p{margin:10px 0;color:var(--text);max-width:76ch}
+li{margin:6px 0;color:var(--text)}
+ul,ol{padding-left:24px;margin:10px 0}
+blockquote{border-left:3px solid var(--accent);background:var(--surface);padding:12px 18px;margin:16px 0;
+  color:var(--text-2);font-size:14px}
+blockquote p{margin:4px 0;color:var(--text-2)}
+code{font-family:var(--mono);font-size:13px;background:var(--surface);border:1px solid var(--border);
+  padding:1px 6px;border-radius:2px}
+pre{background:var(--surface);border:1px solid var(--border);border-radius:2px;padding:14px 16px;
+  overflow:auto;margin:14px 0;line-height:1.6}
+pre code{background:none;border:none;padding:0;font-size:12.5px}
+table{border-collapse:collapse;width:100%;margin:16px 0;font-size:13.5px}
+th{text-align:left;font-weight:600;font-size:12.5px;color:var(--text-2);background:#fafafa;
+  border-bottom:1px solid var(--border-strong);padding:7px 10px}
+td{padding:7px 10px;border-bottom:1px solid #ececec;vertical-align:top}
+tr:hover td{background:var(--surface)}
+hr{border:none;border-top:1px solid var(--border);margin:40px 0}
+a{color:var(--accent)}
+.toc{background:var(--surface);border:1px solid var(--border);border-radius:2px;padding:22px 26px;margin:24px 0 8px}
+.toc > ul{list-style:none;padding-left:0;margin:0;display:grid;grid-template-columns:1fr 1fr;gap:6px 44px}
+.toc > ul > li{break-inside:avoid;margin:0 0 14px;font-weight:600;font-size:14px}
+.toc > ul > li > a{color:var(--text)}
+.toc > ul > li > a:hover{color:var(--accent);text-decoration:underline}
+.toc ul ul{list-style:none;padding-left:0;margin:8px 0 0}
+.toc ul ul li{margin:4px 0;font-weight:400;font-size:13px}
+.toc ul ul a{color:var(--text-2);text-decoration:none}
+.toc ul ul a:hover{color:var(--accent);text-decoration:underline}
+@media (max-width:720px){.toc > ul{grid-template-columns:1fr}}
+.meta{font-size:13px;color:var(--text-3)}
+@media print{.topbar{display:none}main{max-width:none}}
+</style>
+</head>
+<body>
+<div class="topbar"><div class="in">
+  <span class="brand">ProtoForge</span>
+  <a class="crumb" href="/preview/index.html">返回概览</a>
+  <a href="/docs/USER_MANUAL.html">使用手册</a>
+  <a href="/docs/PROTOCOL_SCHEMA.html">Schema 参考</a>
+</div></div>
+<main>
+<h1 id="protoforge-协议定义-schema-参考">ProtoForge 协议定义 Schema 参考</h1>
+<blockquote>
+<p>适用版本 v0.9.0。定义文件是 JSON（<code>.json</code>）或 CSV（平铺子集，见手册第 7 节）。<br />
+本文档是权威格式说明；示例见 <code>examples/smsp.json</code>。</p>
+</blockquote>
+<h2 id="顶层结构">顶层结构</h2>
+<pre><code class="language-json">{
+  &quot;meta&quot;:     { ... },      // 协议元信息
+  &quot;bindings&quot;: [ { ... } ],  // 端口绑定（至少 1 个）
+  &quot;fields&quot;:   [ { ... } ]   // 顶层字段序列（有序）
+}
+</code></pre>
+<h2 id="meta">meta</h2>
+<table>
+<thead>
+<tr>
+<th>键</th>
+<th>类型</th>
+<th>必填</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>name</code></td>
+<td>string</td>
+<td>✓</td>
+<td>协议短名：Lua <code>Proto</code> 名与过滤器前缀；<code>[A-Za-z_][A-Za-z0-9_]*</code></td>
+</tr>
+<tr>
+<td><code>long_name</code></td>
+<td>string</td>
+<td>—</td>
+<td>显示名；缺省 = name 大写</td>
+</tr>
+<tr>
+<td><code>desc</code></td>
+<td>string</td>
+<td>—</td>
+<td>备注（不参与生成）</td>
+</tr>
+<tr>
+<td><code>length_check</code></td>
+<td>object</td>
+<td>—</td>
+<td><code>{ "field": "&lt;长度字段名&gt;", "region": "payload" }</code>：长度字段值 ≠ 帧长−头−尾 时挂 WARN</td>
+</tr>
+</tbody>
+</table>
+<h2 id="bindings">bindings[]</h2>
+<table>
+<thead>
+<tr>
+<th>键</th>
+<th>类型</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>table</code></td>
+<td>string</td>
+<td><code>udp.port</code> 或 <code>tcp.port</code></td>
+</tr>
+<tr>
+<td><code>ports</code></td>
+<td>int[]</td>
+<td>1-65535，可多个；多绑定（同时 udp+tcp）由数组多个元素表达，CLI/生成器支持，GUI 编辑仅第一个</td>
+</tr>
+</tbody>
+</table>
+<h2 id="fieldsfield-对象">fields[]（Field 对象）</h2>
+<p>所有字段共有的键：</p>
+<table>
+<thead>
+<tr>
+<th>键</th>
+<th>类型</th>
+<th>默认</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>name</code></td>
+<td>string</td>
+<td>必填</td>
+<td>全树唯一标识符</td>
+</tr>
+<tr>
+<td><code>label</code></td>
+<td>string</td>
+<td>=name</td>
+<td>解析树显示名（可中文）</td>
+</tr>
+<tr>
+<td><code>type</code></td>
+<td>string</td>
+<td><code>uint8</code></td>
+<td>见类型表</td>
+</tr>
+<tr>
+<td><code>display</code></td>
+<td>string</td>
+<td><code>dec</code></td>
+<td><code>dec</code> / <code>hex</code></td>
+</tr>
+<tr>
+<td><code>enum</code></td>
+<td>object</td>
+<td>—</td>
+<td><code>{ "1": "Telemetry", ... }</code>，键为整数字符串；显示为 <code>1 (Telemetry)</code></td>
+</tr>
+<tr>
+<td><code>const</code></td>
+<td>string</td>
+<td>—</td>
+<td>幻数校验，如 <code>"0x5A5A"</code>；不匹配挂 WARN expert</td>
+</tr>
+</tbody>
+</table>
+<p>按类型附加的键：</p>
+<table>
+<thead>
+<tr>
+<th>type</th>
+<th>附加键</th>
+<th>约束</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>uint8/16/24/32</code>, <code>int8/16/32</code></td>
+<td>—</td>
+<td>大端</td>
+</tr>
+<tr>
+<td><code>uint</code>（位域）</td>
+<td><code>width</code>: 1-7</td>
+<td>连续位域自动打包；每组总和必须 = 8/16/24/32</td>
+</tr>
+<tr>
+<td><code>string</code></td>
+<td><code>size</code>: ≥1</td>
+<td>定长</td>
+</tr>
+<tr>
+<td><code>bytes</code></td>
+<td><code>size</code>: ≥1</td>
+<td>定长，hex 显示</td>
+</tr>
+<tr>
+<td><code>switch</code></td>
+<td><code>on</code>: 字段名；<code>cases</code>: <code>{"1": [Field...], ...}</code></td>
+<td><code>on</code> 字段须在 switch 之前声明；case 键为整数字符串；未匹配值显示 unknown</td>
+</tr>
+<tr>
+<td><code>array</code></td>
+<td><code>count</code>: int 或 <code>count_from</code>: 字段名（二选一）；<code>element</code>: [Field...]</td>
+<td>元素须全为定长字段；<code>count_from</code> 字段须在 array 之前声明</td>
+</tr>
+<tr>
+<td><code>uint16</code> +</td>
+<td><code>crc16</code>: <code>"ccitt_false"</code></td>
+<td>必须是<strong>最后一个顶层字段</strong>；覆盖帧首至该字段前</td>
+</tr>
+</tbody>
+</table>
+<h2 id="校验规则清单validate">校验规则清单（validate）</h2>
+<ol>
+<li>协议名匹配 <code>^[A-Za-z_][A-Za-z0-9_]*$</code> 且<strong>至少 2 个字符</strong>（Wireshark 过滤名下限）；字段名同规则</li>
+<li>字段名全树唯一</li>
+<li><code>type</code> 合法；位域 <code>width</code> 1-7；string/bytes <code>size</code>≥1</li>
+<li>连续位域组总和 ∈ {8,16,24,32}</li>
+<li><strong>引用规则</strong>（作用域感知）：</li>
+<li><code>switch.on</code> / <code>array.count_from</code> 引用的字段必须<strong>在可见作用域内声明在前</strong>（顶层或同一 case 内；跨 case 不可见），且必须是数值/位域类型</li>
+<li><code>meta.length_check.field</code> 必须是<strong>顶层数值</strong>字段</li>
+<li><strong>switch 必须是所在字段列表的最后一项</strong>（switch 长度运行时可变，其后字段无法定位）；<br />
+   顶层例外：switch 之后仅允许 <code>crc16</code> 收尾</li>
+<li>顶层最多一个 switch；顶层不允许 array（数组请放入 case 内）</li>
+<li><code>crc16</code> 字段必须位于顶层末尾且为 <code>uint16</code>；case 内不允许 crc16</li>
+<li><code>array.count</code> 必须是 0-65535 的整数，且与 <code>count_from</code> 二选一；元素内不允许嵌套 switch/array</li>
+<li><code>const</code> 仅支持数值/位域字段且不能为负数（无符号字段）</li>
+<li>至少一个绑定；端口 1-65535；表名仅 <code>udp.port</code>/<code>tcp.port</code></li>
+<li>switch 至少一个 case；array 必须提供 element</li>
+</ol>
+<blockquote>
+<p>说明：label / long_name / enum 值为自由文本，生成时自动做 Lua 字符串转义与块注释消毒，<br />
+可安全包含引号、反斜杠、换行与任意 Unicode。</p>
+</blockquote>
+<h2 id="生成语义简">生成语义（简）</h2>
+<ul>
+<li>读取顺序 = 声明顺序（大端）</li>
+<li>被引用字段（switch.on / count_from / length_check / const）自动生成 <code>local v_&lt;name&gt;</code> 运行时值</li>
+<li>Info 列自动填充：switch 依据字段的枚举名 + <code>Seq=N</code>（若存在名为 <code>seqNum</code> 的字段）</li>
+<li>防御检查（自动包含）：过短包 / 尾随字节 / 幻数 / 长度语义 / CRC</li>
+</ul>
+</main>
+</body>
+</html>

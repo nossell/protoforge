@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ProtoForge 可行性验证记录</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@300;400;600&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/@phosphor-icons/web@2.1.1"></script>
+<style>
+/* ============================================================
+   设计令牌（参考：IBM Carbon × Stripe，本机参考库 ibm.md / stripe.md）
+   主题锁定浅色；单一强调色 IBM Blue 60；间距 8px 网格。
+   圆角规则：按钮/输入 0，代码块与窗口 2-3px（全页统一）。
+   ============================================================ */
+:root{
+  --text:#161616; --text-2:#525252; --text-3:#6f6f6f;
+  --bg:#ffffff; --surface:#f4f4f4; --surface-hover:#e8e8e8;
+  --border:#e0e0e0; --border-strong:#c6c6c6;
+  --accent:#0f62fe; --accent-hover:#0043ce; --accent-tint:#edf5ff; --accent-tint-2:#d0e2ff;
+  --ok:#116932; --err:#da1e28;
+  --sans:'IBM Plex Sans',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+  --mono:'IBM Plex Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15px;line-height:1.5;
+  -webkit-font-smoothing:antialiased}
+::selection{background:#d0e2ff}
+a{color:var(--accent);text-decoration:none}
+a:hover{text-decoration:underline}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.wrap{max-width:1200px;margin:0 auto;padding:0 32px}
+
+/* ---------- 顶栏 ---------- */
+header{border-bottom:1px solid var(--border);background:#fff}
+.head-in{max-width:1200px;margin:0 auto;padding:0 32px;height:48px;display:flex;align-items:center;gap:16px}
+.brand{font-size:14px;font-weight:600;letter-spacing:.1px}
+.brand-sub{font-size:13px;color:var(--text-2);border-left:1px solid var(--border-strong);padding-left:16px}
+.head-nav{margin-left:auto;display:flex;gap:24px}
+.head-nav a{font-size:13px;color:var(--text-2)}
+.head-nav a:hover{color:var(--accent);text-decoration:none}
+
+/* ---------- Hero（非对称分栏，视觉=真实组件预览） ---------- */
+.hero{display:grid;grid-template-columns:5fr 7fr;gap:56px;padding:64px 0 48px;align-items:center}
+@media (max-width:960px){.hero{grid-template-columns:1fr;gap:32px}}
+.hero h1{font-size:42px;font-weight:300;line-height:1.15;letter-spacing:-.9px;margin-bottom:20px}
+.hero .sub{font-size:16px;color:var(--text-2);max-width:44ch;line-height:1.65;margin-bottom:32px}
+.cta-row{display:flex;gap:12px;flex-wrap:wrap}
+.btn{display:inline-flex;align-items:center;gap:8px;font-family:var(--sans);font-size:14px;font-weight:400;
+  padding:10px 20px;border-radius:0;cursor:pointer;transition:background .12s ease,color .12s ease;text-decoration:none}
+.btn:active{transform:translateY(1px)}
+.btn-primary{background:var(--accent);color:#fff;border:1px solid var(--accent)}
+.btn-primary:hover{background:var(--accent-hover);border-color:var(--accent-hover);text-decoration:none}
+.btn-ghost{background:#fff;color:var(--accent);border:1px solid var(--border-strong)}
+.btn-ghost:hover{background:var(--accent-tint);text-decoration:none}
+
+/* ---------- 仿真窗（Wireshark 三窗格，浅色拟真） ---------- */
+.sim{border:1px solid var(--border-strong);border-radius:3px;overflow:hidden;background:#fff;
+  box-shadow:0 2px 8px rgba(50,50,93,.14),0 1px 2px rgba(0,0,0,.06)}
+.sim-bar{display:flex;align-items:baseline;gap:12px;background:var(--surface);
+  border-bottom:1px solid var(--border);padding:8px 14px}
+.sim-bar .fn{font-size:13px;font-weight:600}
+.sim-bar .meta{font-size:12px;color:var(--text-3)}
+.sim-bar .right{margin-left:auto;font-size:12px;color:var(--text-3)}
+.pkt{width:100%;border-collapse:collapse;font-size:13px}
+.pkt th{text-align:left;font-weight:500;font-size:12px;color:var(--text-3);background:#fafafa;
+  border-bottom:1px solid var(--border);padding:5px 10px;white-space:nowrap}
+.pkt td{padding:4px 10px;border-bottom:1px solid #ececec;white-space:nowrap;cursor:pointer;color:var(--text)}
+.pkt tr:hover td{background:var(--surface-hover)}
+.pkt tr.sel td{background:var(--accent-tint-2)}
+.pkt td.num{color:var(--text-3)}
+.pkt td .ptag{font-weight:600}
+.pkt td.info{max-width:340px;overflow:hidden;text-overflow:ellipsis}
+.split{display:grid;grid-template-columns:minmax(360px,57%) minmax(280px,43%);border-top:1px solid var(--border)}
+@media (max-width:760px){.split{grid-template-columns:1fr}}
+.pane-cap{font-size:11px;color:var(--text-3);letter-spacing:.32px;padding:8px 12px 4px}
+.tree-pane{padding:4px 6px 10px;min-height:320px;max-height:400px;overflow:auto}
+.hex-pane{border-left:1px solid var(--border);padding:4px 10px 10px;min-height:320px;max-height:400px;overflow:auto}
+@media (max-width:760px){.hex-pane{border-left:none;border-top:1px solid var(--border)}}
+.tnode{display:flex;align-items:baseline;gap:5px;padding:2px 6px;border-radius:0;cursor:pointer;font-size:13px}
+.tnode:hover{background:var(--surface)}
+.tnode .tw{width:12px;flex:none;display:inline-flex;justify-content:center;color:var(--text-3)}
+.tnode .tw svg{width:9px;height:9px;transition:transform .12s ease}
+.tnode.open>.tw svg{transform:rotate(90deg)}
+.tnode .bits{font-family:var(--mono);font-size:11px;color:var(--text-3)}
+.tnode .fv{color:var(--accent)}
+.tnode .fv.ok{color:var(--ok)}
+.tnode .fv.bad{color:var(--err);font-weight:600}
+.tnode .expert{color:var(--err)}
+.tnode .plain{color:var(--text)}
+.tchildren{margin-left:17px;border-left:1px dotted var(--border-strong);display:none}
+.tnode.open+.tchildren{display:block}
+.tnode.hl{background:var(--accent-tint)}
+.hexrow{display:flex;white-space:nowrap;font-family:var(--mono);font-size:12.5px;line-height:1.8}
+.hexrow .off{color:var(--text-3);width:42px;flex:none}
+.hexrow .b{width:24px;text-align:center;border-radius:1px}
+.hexrow .b.hl,.hexrow .ascii .hl{background:var(--accent);color:#fff}
+.hexrow .ascii{margin-left:12px;color:var(--text-2)}
+.sim-note{font-size:12px;color:var(--text-3);margin-top:10px;line-height:1.6}
+
+/* ---------- 通用段落 ---------- */
+section{margin-top:88px}
+h2{font-size:28px;font-weight:400;letter-spacing:-.2px;margin-bottom:10px}
+.sec-sub{font-size:15px;color:var(--text-2);max-width:68ch;line-height:1.65;margin-bottom:32px}
+
+/* ---------- 定义 vs 产物 ---------- */
+.io-grid{display:grid;grid-template-columns:1fr 36px 1fr;gap:0;align-items:start}
+@media (max-width:900px){.io-grid{grid-template-columns:1fr}.io-arrow{display:none}}
+.io-col .cap{font-size:12px;letter-spacing:.32px;color:var(--text-2);margin-bottom:8px}
+.io-col .cap b{color:var(--text);font-weight:600}
+pre.code{background:var(--surface);border:1px solid var(--border);border-radius:2px;padding:16px;
+  font-family:var(--mono);font-size:12.5px;line-height:1.65;overflow:auto;max-height:380px;color:var(--text)}
+pre.code .k{color:#0043ce}
+pre.code .s{color:#8a3800}
+.io-arrow{display:flex;align-items:center;justify-content:center;height:100%;color:var(--accent);
+  font-family:var(--mono);font-size:18px}
+details.full{margin-top:20px;border:1px solid var(--border);border-radius:2px;background:#fff}
+details.full summary{cursor:pointer;padding:12px 16px;font-size:14px;color:var(--text-2);list-style:none;
+  display:flex;align-items:center;gap:8px;user-select:none}
+details.full summary:hover{color:var(--accent);background:var(--surface)}
+details.full summary::-webkit-details-marker{display:none}
+details.full summary .tw{transition:transform .12s ease;display:inline-flex;color:var(--text-3)}
+details.full[open] summary .tw{transform:rotate(90deg)}
+details.full pre{margin:0 12px 12px;max-height:440px}
+
+/* ---------- 挡坑记录（无卡片，两列留白分组） ---------- */
+.pitfalls{display:grid;grid-template-columns:1fr 1fr;gap:36px 56px}
+@media (max-width:860px){.pitfalls{grid-template-columns:1fr}}
+.pit{display:flex;gap:14px}
+.pit i{font-size:19px;color:var(--err);flex:none;margin-top:1px}
+.pit h3{font-size:15px;font-weight:600;margin-bottom:5px;font-family:var(--mono);letter-spacing:0}
+.pit p{font-size:14px;color:var(--text-2);line-height:1.65}
+
+/* ---------- 结论 ---------- */
+.verdict{background:var(--surface);border-left:3px solid var(--accent);padding:32px 36px}
+.verdict h3{font-size:20px;font-weight:600;margin-bottom:12px}
+.verdict p{font-size:15px;color:var(--text-2);max-width:76ch;line-height:1.7}
+.verdict ul{list-style:none;margin-top:16px}
+.verdict li{font-size:14px;color:var(--text-2);padding:5px 0 5px 20px;position:relative;line-height:1.6}
+.verdict li::before{content:"";position:absolute;left:2px;top:13px;width:5px;height:5px;background:var(--accent)}
+.verdict li b{color:var(--text);font-weight:600}
+
+/* ---------- 页脚 ---------- */
+footer{margin-top:96px;border-top:1px solid var(--border);padding:20px 0 40px;font-size:13px;color:var(--text-3)}
+
+/* ---------- 动效（MOTION 3：入场一次 + 悬停态，尊重 reduced-motion） ---------- */
+@media (prefers-reduced-motion:no-preference){
+  .rise{animation:rise .45s cubic-bezier(.16,1,.3,1) both}
+  @keyframes rise{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+  .fade-swap{animation:fswap .15s ease}
+  @keyframes fswap{from{opacity:.4}to{opacity:1}}
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="head-in">
+    <span class="brand">ProtoForge</span>
+    <span class="brand-sub">Wireshark Lua 解析器生成器</span>
+    <nav class="head-nav">
+      <a href="/docs/USER_MANUAL.html">使用手册</a>
+      <a href="/examples/demo.pcap" download>示例抓包</a>
+    </nav>
+  </div>
+</header>
+
+<div class="wrap">
+
+<!-- Hero：左文右真实组件预览 -->
+<div class="hero rise">
+  <div>
+    <h1>让 Wireshark 看懂<br>你的私有协议</h1>
+    <p class="sub">从 56 行协议定义生成完整的 Lua 解析器，一键部署进 Wireshark；内置测试台无需抓包即可验证解析结果。</p>
+    <div class="cta-row">
+      <a class="btn btn-primary" href="/docs/USER_MANUAL.html">阅读使用手册</a>
+      <a class="btn btn-ghost" href="/examples/demo.pcap" download>下载示例抓包</a>
+    </div>
+  </div>
+  <div>
+    <div class="sim" id="sim">
+      <div class="sim-bar">
+        <span class="fn">demo.pcap</span>
+        <span class="meta">4 帧，SMSP 解析器由 smsp.json 生成</span>
+        <span class="right">udp.port 5566</span>
+      </div>
+      <table class="pkt" aria-label="数据包列表">
+        <thead><tr><th>#</th><th>Time</th><th>Source</th><th>Destination</th><th>Protocol</th><th>Info</th></tr></thead>
+        <tbody id="pktBody"></tbody>
+      </table>
+      <div class="split">
+        <div class="tree-pane">
+          <div class="pane-cap">解析树（生成的 Lua 渲染，点击节点定位字节）</div>
+          <div id="treeHost"></div>
+        </div>
+        <div class="hex-pane">
+          <div class="pane-cap">十六进制</div>
+          <div id="hexHost"></div>
+        </div>
+      </div>
+    </div>
+    <p class="sim-note">上方为可交互仿真，数据来自真实 tshark 4.6.8 的解析输出；生成的解析器已装入本机 Wireshark 插件目录，用 Wireshark 打开 demo.pcap 可见相同结果。</p>
+  </div>
+</div>
+
+<!-- 定义与产物 -->
+<section>
+  <h2>你写的，和它替你写的</h2>
+  <p class="sec-sub">左侧是全部人工输入：一份声明式定义，覆盖位域、枚举、条件分支、变长数组和 CRC 校验。
+     右侧是生成器输出：184 行可直接装入 Wireshark 的 Lua 代码，包含掩码计算、循环、防御性检查和端口注册。</p>
+  <div class="io-grid">
+    <div class="io-col">
+      <div class="cap"><b>smsp.json</b> 协议定义，56 行</div>
+      <pre class="code">[
+  { <span class="s">"name"</span>: <span class="k">"magic"</span>, <span class="s">"type"</span>: <span class="k">"uint16"</span>,
+    <span class="s">"display"</span>: <span class="k">"hex"</span>, <span class="s">"const"</span>: <span class="k">"0x5A5A"</span> },
+  { <span class="s">"name"</span>: <span class="k">"version"</span>, <span class="s">"type"</span>: <span class="k">"uint"</span>, <span class="s">"width"</span>: 4 },
+  { <span class="s">"name"</span>: <span class="k">"msgType"</span>, <span class="s">"type"</span>: <span class="k">"uint"</span>, <span class="s">"width"</span>: 4,
+    <span class="s">"enum"</span>: { <span class="s">"1"</span>: <span class="k">"Telemetry"</span>, <span class="s">"2"</span>: <span class="k">"Config"</span> } },
+  { <span class="s">"name"</span>: <span class="k">"payload"</span>, <span class="s">"type"</span>: <span class="k">"switch"</span>, <span class="s">"on"</span>: <span class="k">"msgType"</span>,
+    <span class="s">"cases"</span>: {
+      <span class="s">"1"</span>: [
+        { <span class="s">"name"</span>: <span class="k">"sensorCount"</span>, <span class="s">"type"</span>: <span class="k">"uint8"</span> },
+        { <span class="s">"name"</span>: <span class="k">"sensors"</span>, <span class="s">"type"</span>: <span class="k">"array"</span>,
+          <span class="s">"count_from"</span>: <span class="k">"sensorCount"</span>,
+          <span class="s">"element"</span>: [
+            { <span class="s">"name"</span>: <span class="k">"sensorId"</span>, <span class="s">"type"</span>: <span class="k">"uint16"</span> },
+            { <span class="s">"name"</span>: <span class="k">"online"</span>, <span class="s">"type"</span>: <span class="k">"uint"</span>, <span class="s">"width"</span>: 1 }
+          ] } ],
+      <span class="s">"2"</span>: [ <span class="s">"…"</span> ] } },
+  { <span class="s">"name"</span>: <span class="k">"crc16"</span>, <span class="s">"type"</span>: <span class="k">"uint16"</span>,
+    <span class="s">"crc16"</span>: <span class="k">"ccitt_false"</span> }]</pre>
+    </div>
+    <div class="io-arrow">-&gt;</div>
+    <div class="io-col">
+      <div class="cap"><b>smsp.lua</b> 生成物，184 行</div>
+      <pre class="code">local pf_version = ProtoField.uint8(<span class="s">"smsp.version"</span>,
+    <span class="s">"Protocol Version"</span>, base.DEC, nil, 0xF0)
+local pf_online  = ProtoField.bool(<span class="s">"smsp.online"</span>,
+    <span class="s">"Online"</span>, 8, nil, 0x80)
+
+for i = 1, v_sensorCount do
+    local st = st_payload:add(buffer(off, 6),
+        <span class="s">"Sensor ["</span> .. (i - 1) .. <span class="s">"]"</span>)
+    st:add(pf_sensorid, buffer(off, 2))
+    off = off + 6
+end
+
+local c = crc16_ccitt(buffer:bytes(), 0, off - 1)
+if c == v_crc16 then
+    it_crc:append_text(<span class="s">" [correct]"</span>)
+else
+    st:add_proto_expert_info(pe_crc_bad,
+        string.format(<span class="s">"got 0x%04X"</span>, v_crc16))
+end</pre>
+    </div>
+  </div>
+  <details class="full">
+    <summary><span class="tw"><svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor"><path d="M3 1l4 4-4 4z"/></svg></span>展开完整生成物 out/smsp.lua，已通过真实 Wireshark 4.6.8 验证</summary>
+    <pre class="code" id="fullLua">载入中</pre>
+  </details>
+</section>
+
+<!-- 挡坑记录 -->
+<section>
+  <h2>生成器替你挡掉的坑</h2>
+  <p class="sec-sub">以下四个错误都在开发期真实发生。前两个连内置模拟环境都没有拦截，由真实 Wireshark 执行时抓出，
+     这正是手写解析器最消耗时间的部分，也是生成器的核心价值。</p>
+  <div class="pitfalls">
+    <div class="pit">
+      <i class="ph ph-warning"></i>
+      <div>
+        <h3>ByteArray:get() 不存在</h3>
+        <p>Wireshark 4.6 的字节访问 API 是 get_index()，get() 只存在于旧版教程里。生成器统一输出经过实测的方法名。</p>
+      </div>
+    </div>
+    <div class="pit">
+      <i class="ph ph-warning"></i>
+      <div>
+        <h3>tree:add 不接受字符串值</h3>
+        <p>给数值字段传格式化文本会直接抛异常，正确做法是先 add 再 append_text，官方教程也未写明。</p>
+      </div>
+    </div>
+    <div class="pit">
+      <i class="ph ph-warning"></i>
+      <div>
+        <h3>数组偏移双重推进</h3>
+        <p>元素字段各自推进偏移后，循环尾部又累加了一次元素长度，第二个元素直接越界读。手写循环的经典错误。</p>
+      </div>
+    </div>
+    <div class="pit">
+      <i class="ph ph-warning"></i>
+      <div>
+        <h3>块注释多一个空格</h3>
+        <p>-- [[ 会被当作单行注释，第二行中文直接变成代码，整个文件语法错误。工具生成不会犯这类错。</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 结论 -->
+<section>
+  <h2>验证结论</h2>
+  <div class="verdict">
+    <h3>可行，核心价值链已在真实环境打通</h3>
+    <p>声明式定义到正确 Lua 的转换、内置引擎执行、真实 Wireshark 验证三条链路全部通过，
+       未遇到可行性调研之外的障碍。剩余工作在产品化：界面打磨、更多协议样例、导入格式扩展。</p>
+    <ul>
+      <li><b>生成内核成立</b>：56 行定义生成 184 行 Lua，位域、嵌套、条件、数组、CRC 全部正确</li>
+      <li><b>双通道验证</b>：内置引擎与真实 tshark 4.6.8 输出一致，CI 环境可不装 Wireshark 跑测试</li>
+      <li><b>挡坑价值实证</b>：开发期捕获 4 个真实 API 陷阱，均已内置规避并有回归测试覆盖</li>
+    </ul>
+  </div>
+</section>
+
+<footer>
+  ProtoForge 可行性验证记录，2026-09-27。生成物按 Wireshark 官方口径以 GPLv2+ 分发，生成器本体独立于 Wireshark。
+</footer>
+
+</div>
+
+<script>
+/* ============ 真实解析数据（demo.pcap + tshark 4.6.8 输出） ============ */
+const F = [
+ {no:1,time:"0.000000",src:"192.168.10.50",dst:"192.168.10.200",info:"Telemetry, Seq=1",
+  hex:"5a5a1101000d020102c0ff83020304a0106803875a",
+  tree:[
+   {l:"SmartMesh Sensor Protocol",r:[0,21],children:[
+     {l:"Magic",v:"0x5a5a",r:[0,2]},
+     {l:"Protocol Version",bits:"0001 ....",v:"1",r:[2,1]},
+     {l:"Message Type",bits:".... 0001",v:"1 (Telemetry)",r:[2,1]},
+     {l:"Sequence Number",v:"1",r:[3,1]},
+     {l:"Payload Length",v:"13",r:[4,2]},
+     {l:"Payload",plain:true,r:[6,13],children:[
+        {l:"Sensor Count",v:"2",r:[6,1]},
+        {l:"Sensor [0]",plain:true,r:[7,6],children:[
+          {l:"Sensor ID",v:"0x0102",r:[7,2]},
+          {l:"Online",bits:"1... ....",v:"True",r:[9,1]},
+          {l:"Battery Low",bits:".1.. ....",v:"True",r:[9,1]},
+          {l:"Calibrated",bits:"..0. ....",v:"False",r:[9,1]},
+          {l:"Flags Rsv",bits:"...0 0000",v:"0",r:[9,1]},
+          {l:"Raw Value",v:"-125",r:[10,2]},
+          {l:"Quality",v:"Good (2)",r:[12,1]}]},
+        {l:"Sensor [1]",plain:true,r:[13,6],children:[
+          {l:"Sensor ID",v:"0x0304",r:[13,2]},
+          {l:"Online",bits:"1... ....",v:"True",r:[15,1]},
+          {l:"Battery Low",bits:".0.. ....",v:"False",r:[15,1]},
+          {l:"Calibrated",bits:"..1. ....",v:"True",r:[15,1]},
+          {l:"Flags Rsv",bits:"...0 0000",v:"0",r:[15,1]},
+          {l:"Raw Value",v:"4200",r:[16,2]},
+          {l:"Quality",v:"Excellent (3)",r:[18,1]}]}]},
+     {l:"CRC-16/CCITT",v:"0x875a [correct]",ok:true,r:[19,2]}]}]},
+ {no:2,time:"1.000000",src:"192.168.10.50",dst:"192.168.10.200",info:"Config, Seq=2",
+  hex:"5a5a120200090713880064ffce004b6cb5",
+  tree:[
+   {l:"SmartMesh Sensor Protocol",r:[0,17],children:[
+     {l:"Magic",v:"0x5a5a",r:[0,2]},
+     {l:"Protocol Version",bits:"0001 ....",v:"1",r:[2,1]},
+     {l:"Message Type",bits:".... 0010",v:"2 (Config)",r:[2,1]},
+     {l:"Sequence Number",v:"2",r:[3,1]},
+     {l:"Payload Length",v:"9",r:[4,2]},
+     {l:"Payload",plain:true,r:[6,9],children:[
+        {l:"Config Version",v:"7",r:[6,1]},
+        {l:"Report Interval (ms)",v:"5000",r:[7,2]},
+        {l:"Threshold [0]",plain:true,r:[9,2],children:[{l:"Alert Threshold",v:"100",r:[9,2]}]},
+        {l:"Threshold [1]",plain:true,r:[11,2],children:[{l:"Alert Threshold",v:"-50",r:[11,2]}]},
+        {l:"Threshold [2]",plain:true,r:[13,2],children:[{l:"Alert Threshold",v:"75",r:[13,2]}]}]},
+     {l:"CRC-16/CCITT",v:"0x6cb5 [correct]",ok:true,r:[15,2]}]}]},
+ {no:3,time:"2.000000",src:"192.168.10.50",dst:"192.168.10.200",info:"Event, Seq=3",
+  hex:"5a5a130300050369800e808df3",
+  tree:[
+   {l:"SmartMesh Sensor Protocol",r:[0,13],children:[
+     {l:"Magic",v:"0x5a5a",r:[0,2]},
+     {l:"Protocol Version",bits:"0001 ....",v:"1",r:[2,1]},
+     {l:"Message Type",bits:".... 0011",v:"3 (Event)",r:[2,1]},
+     {l:"Sequence Number",v:"3",r:[3,1]},
+     {l:"Payload Length",v:"5",r:[4,2]},
+     {l:"Payload",plain:true,r:[6,5],children:[
+        {l:"Event Code",v:"3 (Low Battery)",r:[6,1]},
+        {l:"Timestamp (UTC)",v:"1770000000",r:[7,4]}]},
+     {l:"CRC-16/CCITT",v:"0x8df3 [correct]",ok:true,r:[11,2]}]}]},
+ {no:4,time:"3.000000",src:"192.168.10.50",dst:"192.168.10.200",info:"Telemetry, Seq=1",
+  hex:"5a5a1101000d020102c0ff83020304a010680387a5",
+  tree:[
+   {l:"SmartMesh Sensor Protocol",r:[0,21],children:[
+     {l:"Magic",v:"0x5a5a",r:[0,2]},
+     {l:"Protocol Version",bits:"0001 ....",v:"1",r:[2,1]},
+     {l:"Message Type",bits:".... 0001",v:"1 (Telemetry)",r:[2,1]},
+     {l:"Sequence Number",v:"1",r:[3,1]},
+     {l:"Payload Length",v:"13",r:[4,2]},
+     {l:"Payload",plain:true,r:[6,13],children:[
+        {l:"Sensor Count",v:"2",r:[6,1]},
+        {l:"Sensor [0]",plain:true,r:[7,6],children:[
+          {l:"Sensor ID",v:"0x0102",r:[7,2]},
+          {l:"Online",bits:"1... ....",v:"True",r:[9,1]},
+          {l:"Battery Low",bits:".1.. ....",v:"True",r:[9,1]},
+          {l:"Calibrated",bits:"..0. ....",v:"False",r:[9,1]},
+          {l:"Flags Rsv",bits:"...0 0000",v:"0",r:[9,1]},
+          {l:"Raw Value",v:"-125",r:[10,2]},
+          {l:"Quality",v:"Good (2)",r:[12,1]}]},
+        {l:"Sensor [1]",plain:true,r:[13,6],children:[
+          {l:"Sensor ID",v:"0x0304",r:[13,2]},
+          {l:"Online",bits:"1... ....",v:"True",r:[15,1]},
+          {l:"Battery Low",bits:".0.. ....",v:"False",r:[15,1]},
+          {l:"Calibrated",bits:"..1. ....",v:"True",r:[15,1]},
+          {l:"Flags Rsv",bits:"...0 0000",v:"0",r:[15,1]},
+          {l:"Raw Value",v:"4200",r:[16,2]},
+          {l:"Quality",v:"Excellent (3)",r:[18,1]}]}]},
+     {l:"CRC-16/CCITT",v:"0x87a5 [incorrect, expected 0x875A]",bad:true,r:[19,2]},
+     {l:"Expert Info (Error/Checksum): got 0x87A5, computed 0x875A",expert:true,r:[19,2]}]}]}
+];
+
+const pktBody=document.getElementById('pktBody');
+const treeHost=document.getElementById('treeHost');
+const hexHost=document.getElementById('hexHost');
+let curF=0, hlRange=null;
+
+function esc(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;')}
+
+function renderList(){
+  pktBody.innerHTML='';
+  F.forEach((f,i)=>{
+    const tr=document.createElement('tr');
+    if(i===curF)tr.className='sel';
+    tr.innerHTML=`<td class="num">${f.no}</td><td>${f.time}</td><td>${f.src}</td><td>${f.dst}</td>`+
+      `<td><span class="ptag">SMSP</span></td><td class="info">${esc(f.info)}</td>`;
+    tr.addEventListener('click',()=>{curF=i;renderList();renderTree();renderHex()});
+    pktBody.appendChild(tr);
+  });
+}
+
+function nodeEl(n){
+  const wrap=document.createElement('div');
+  const row=document.createElement('div');
+  const has=n.children&&n.children.length;
+  row.className='tnode'+(has?' open':'');
+  row.innerHTML=`<span class="tw">${has?'<svg viewBox="0 0 10 10" fill="currentColor"><path d="M3 1l4 4-4 4z"/></svg>':''}</span>`+
+    (n.bits?`<span class="bits">${n.bits} = </span>`:'')+
+    (n.plain||n.expert?`<span class="${n.expert?'expert':'plain'}">${esc(n.l)}</span>`
+                      :`<span>${esc(n.l)}: </span>`)+
+    (n.v?`<span class="fv ${n.ok?'ok':n.bad?'bad':''}">${esc(n.v)}</span>`:'');
+  row.tabIndex=0;row.setAttribute('role','treeitem');
+  row.addEventListener('click',e=>{
+    e.stopPropagation();
+    if(has)row.classList.toggle('open');
+    hlRange=n.r;renderHex();markHl(row);
+  });
+  row.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();row.click()}});
+  wrap.appendChild(row);
+  if(has){
+    const kids=document.createElement('div');
+    kids.className='tchildren';
+    n.children.forEach(c=>kids.appendChild(nodeEl(c)));
+    wrap.appendChild(kids);
+  }
+  return wrap;
+}
+function markHl(row){
+  treeHost.querySelectorAll('.tnode.hl').forEach(x=>x.classList.remove('hl'));
+  row.classList.add('hl');
+}
+function renderTree(){
+  const box=document.createElement('div');
+  box.className='fade-swap';
+  F[curF].tree.forEach(t=>box.appendChild(nodeEl(t)));
+  treeHost.innerHTML='';
+  treeHost.appendChild(box);
+  const root=box.querySelectorAll('.tnode')[0];
+  if(root){hlRange=F[curF].tree[0].r;setTimeout(()=>markHl(root),0)}
+}
+function renderHex(){
+  const bytes=F[curF].hex.match(/../g)||[];
+  let html='<div class="fade-swap">';
+  for(let i=0;i<bytes.length;i+=8){
+    html+=`<div class="hexrow"><span class="off">${i.toString(16).padStart(4,'0')}</span><span class="bytes">`;
+    let asc='';
+    for(let j=0;j<8&&i+j<bytes.length;j++){
+      const idx=i+j,v=parseInt(bytes[i+j],16);
+      const on=hlRange&&idx>=hlRange[0]&&idx<hlRange[0]+hlRange[1];
+      html+=`<span class="b${on?' hl':''}">${bytes[i+j]}</span>`;
+      asc+=`<span class="${on?'hl':''}">${v>=32&&v<127?String.fromCharCode(v):'·'}</span>`;
+    }
+    html+=`</span><span class="ascii">${asc}</span></div>`;
+  }
+  hexHost.innerHTML=html+'</div>';
+}
+
+renderList();renderTree();renderHex();
+
+document.querySelector('details.full').addEventListener('toggle',async e=>{
+  if(e.target.open&&document.getElementById('fullLua').textContent==='载入中'){
+    try{
+      const r=await fetch('/examples/smsp.lua');
+      document.getElementById('fullLua').textContent=await r.text();
+    }catch(_){
+      document.getElementById('fullLua').textContent='（file:// 下无法读取，请直接查看 out/smsp.lua，或经本地 HTTP 服务打开本页。）';
+    }
+  }
+});
+</script>
+</body>
+</html>

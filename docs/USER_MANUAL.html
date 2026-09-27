@@ -1,0 +1,775 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ProtoForge 使用手册</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@300;400;600&display=swap');
+:root{
+  --text:#161616; --text-2:#525252; --text-3:#6f6f6f;
+  --bg:#ffffff; --surface:#f4f4f4;
+  --border:#e0e0e0; --border-strong:#c6c6c6;
+  --accent:#0f62fe; --accent-hover:#0043ce; --tint:#edf5ff; --tint-2:#d0e2ff;
+  --sans:'IBM Plex Sans',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+  --mono:'IBM Plex Mono',ui-monospace,Menlo,Consolas,monospace;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:15px;line-height:1.7;
+  -webkit-font-smoothing:antialiased}
+.topbar{position:sticky;top:0;z-index:5;background:#fff;border-bottom:1px solid var(--border)}
+.topbar .in{max-width:880px;margin:0 auto;padding:0 24px;height:48px;display:flex;align-items:center;gap:14px}
+.topbar a{font-size:13px;color:var(--text-2);text-decoration:none}
+.topbar a:hover{color:var(--accent)}
+.topbar .brand{font-size:14px;font-weight:600;color:var(--text)}
+.topbar .crumb{border-left:1px solid var(--border-strong);padding-left:14px}
+main{max-width:880px;margin:0 auto;padding:40px 24px 96px}
+h1{font-size:34px;font-weight:300;letter-spacing:-.7px;line-height:1.2;margin:20px 0 8px}
+h2{font-size:24px;font-weight:400;letter-spacing:-.2px;margin:56px 0 12px;padding-top:12px;border-top:1px solid var(--border)}
+h3{font-size:17px;font-weight:600;margin:32px 0 8px}
+p{margin:10px 0;color:var(--text);max-width:76ch}
+li{margin:6px 0;color:var(--text)}
+ul,ol{padding-left:24px;margin:10px 0}
+blockquote{border-left:3px solid var(--accent);background:var(--surface);padding:12px 18px;margin:16px 0;
+  color:var(--text-2);font-size:14px}
+blockquote p{margin:4px 0;color:var(--text-2)}
+code{font-family:var(--mono);font-size:13px;background:var(--surface);border:1px solid var(--border);
+  padding:1px 6px;border-radius:2px}
+pre{background:var(--surface);border:1px solid var(--border);border-radius:2px;padding:14px 16px;
+  overflow:auto;margin:14px 0;line-height:1.6}
+pre code{background:none;border:none;padding:0;font-size:12.5px}
+table{border-collapse:collapse;width:100%;margin:16px 0;font-size:13.5px}
+th{text-align:left;font-weight:600;font-size:12.5px;color:var(--text-2);background:#fafafa;
+  border-bottom:1px solid var(--border-strong);padding:7px 10px}
+td{padding:7px 10px;border-bottom:1px solid #ececec;vertical-align:top}
+tr:hover td{background:var(--surface)}
+hr{border:none;border-top:1px solid var(--border);margin:40px 0}
+a{color:var(--accent)}
+.toc{background:var(--surface);border:1px solid var(--border);border-radius:2px;padding:22px 26px;margin:24px 0 8px}
+.toc > ul{list-style:none;padding-left:0;margin:0;display:grid;grid-template-columns:1fr 1fr;gap:6px 44px}
+.toc > ul > li{break-inside:avoid;margin:0 0 14px;font-weight:600;font-size:14px}
+.toc > ul > li > a{color:var(--text)}
+.toc > ul > li > a:hover{color:var(--accent);text-decoration:underline}
+.toc ul ul{list-style:none;padding-left:0;margin:8px 0 0}
+.toc ul ul li{margin:4px 0;font-weight:400;font-size:13px}
+.toc ul ul a{color:var(--text-2);text-decoration:none}
+.toc ul ul a:hover{color:var(--accent);text-decoration:underline}
+@media (max-width:720px){.toc > ul{grid-template-columns:1fr}}
+.meta{font-size:13px;color:var(--text-3)}
+@media print{.topbar{display:none}main{max-width:none}}
+</style>
+</head>
+<body>
+<div class="topbar"><div class="in">
+  <span class="brand">ProtoForge</span>
+  <a class="crumb" href="/preview/index.html">返回概览</a>
+  <a href="/docs/USER_MANUAL.html">使用手册</a>
+  <a href="/docs/PROTOCOL_SCHEMA.html">Schema 参考</a>
+</div></div>
+<main>
+<h1 id="protoforge-使用手册">ProtoForge 使用手册</h1>
+<blockquote>
+<p>版本 v0.9.0 ｜ 2026-09-27 ｜ 适用于 Windows（Linux/macOS 同理）<br />
+ProtoForge 是一个 Wireshark Lua 解析器（dissector）生成器：声明式定义私有二进制协议，<br />
+一键生成完整 Lua 解析器、一键部署进 Wireshark、内置测试台免抓包验证。</p>
+</blockquote>
+<hr />
+<div class="toc">
+<ul>
+<li><a href="#1-产品简介与工作原理">1. 产品简介与工作原理</a><ul>
+<li><a href="#11-解决什么问题">1.1 解决什么问题</a></li>
+<li><a href="#12-生成器替你挡掉的坑实测验证">1.2 生成器替你挡掉的坑（实测验证）</a></li>
+<li><a href="#13-工作流总览">1.3 工作流总览</a></li>
+</ul>
+</li>
+<li><a href="#2-安装与启动">2. 安装与启动</a><ul>
+<li><a href="#21-环境要求">2.1 环境要求</a></li>
+<li><a href="#22-安装依赖">2.2 安装依赖</a></li>
+<li><a href="#23-启动">2.3 启动</a></li>
+<li><a href="#24-自检可选">2.4 自检（可选）</a></li>
+</ul>
+</li>
+<li><a href="#3-五分钟快速上手">3. 五分钟快速上手</a><ul>
+<li><a href="#31-打开示例">3.1 打开示例</a></li>
+<li><a href="#32-生成-lua">3.2 生成 Lua</a></li>
+<li><a href="#33-测试台验证">3.3 测试台验证</a></li>
+<li><a href="#34-部署进-wireshark">3.4 部署进 Wireshark</a></li>
+<li><a href="#35-实抓验证">3.5 实抓验证</a></li>
+</ul>
+</li>
+<li><a href="#4-界面详解">4. 界面详解</a><ul>
+<li><a href="#41-布局">4.1 布局</a></li>
+<li><a href="#42-协议定义meta区">4.2 协议定义（meta）区</a></li>
+<li><a href="#43-字段结构树编辑器">4.3 字段结构（树编辑器）</a></li>
+<li><a href="#44-字段属性表单">4.4 字段属性（表单）</a></li>
+<li><a href="#45-生成的-lua标签页">4.5 生成的 Lua（标签页）</a></li>
+<li><a href="#46-测试台标签页">4.6 测试台（标签页）</a></li>
+</ul>
+</li>
+<li><a href="#5-协议定义详解类型系统">5. 协议定义详解（类型系统）</a><ul>
+<li><a href="#51-字段类型一览">5.1 字段类型一览</a></li>
+<li><a href="#52-位域打包规则重点">5.2 位域打包规则（重点）</a></li>
+<li><a href="#53-switch条件分支">5.3 switch（条件分支）</a></li>
+<li><a href="#54-array数组">5.4 array（数组）</a></li>
+<li><a href="#55-crc-16ccitt-false">5.5 CRC-16/CCITT-FALSE</a></li>
+<li><a href="#56-自动附赠的防御性检查">5.6 自动附赠的防御性检查</a></li>
+<li><a href="#57-校验错误对照表状态栏">5.7 校验错误对照表（状态栏）</a></li>
+</ul>
+</li>
+<li><a href="#6-json-格式参考">6. JSON 格式参考</a></li>
+<li><a href="#7-csv-格式参考">7. CSV 格式参考</a></li>
+<li><a href="#8-测试台使用指南">8. 测试台使用指南</a><ul>
+<li><a href="#81-两种输入">8.1 两种输入</a></li>
+<li><a href="#82-结果解读">8.2 结果解读</a></li>
+<li><a href="#83-常见-expert-含义">8.3 常见 expert 含义</a></li>
+<li><a href="#84-工作原理为什么不用装-wireshark">8.4 工作原理（为什么不用装 Wireshark）</a></li>
+</ul>
+</li>
+<li><a href="#9-命令行cli参考">9. 命令行（CLI）参考</a></li>
+<li><a href="#10-部署与-wireshark-版本兼容">10. 部署与 Wireshark 版本兼容</a><ul>
+<li><a href="#101-插件目录自动发现">10.1 插件目录（自动发现）</a></li>
+<li><a href="#102-版本兼容">10.2 版本兼容</a></li>
+<li><a href="#103-安装后不生效排查顺序">10.3 安装后不生效排查顺序</a></li>
+</ul>
+</li>
+<li><a href="#11-故障排查-faq">11. 故障排查 FAQ</a></li>
+<li><a href="#12-授权与合规">12. 授权与合规</a></li>
+<li><a href="#13-路线图与已知限制">13. 路线图与已知限制</a></li>
+</ul>
+</div>
+<hr />
+<h2 id="1-产品简介与工作原理">1. 产品简介与工作原理</h2>
+<h3 id="11-解决什么问题">1.1 解决什么问题</h3>
+<p>任何跟私有二进制协议打交道的工程师（IoT、车载、工业、电信）都逃不过一件事：<br />
+让 Wireshark 能看懂自己的协议。官方路径只有一条——手写 Lua dissector。<br />
+这是公认的枯燥苦活：样板代码多、位域掩码易错、注册机制难懂、调试靠猜、<br />
+API 版本坑多（典型如 <code>ByteArray:get()</code> 在 4.6 里根本不存在，要用 <code>get_index()</code>）。</p>
+<p>ProtoForge 把这件事变成「填表格」：</p>
+<pre><code>协议定义（GUI 表格 / JSON / CSV）
+        │  model.validate（校验：位域边界、引用、CRC 位置…）
+        ▼
+generator（生成器：位域掩码、switch 分支、数组循环、CRC 计算、expert 挂载、端口注册）
+        ▼
+完整 Lua dissector（.lua 文件，约为你手写量的 3 倍行数，但每行都对）
+        ├──▶ 测试台：内置 mock 引擎真实执行 Lua，免抓包看解析树
+        └──▶ 一键部署：写入 Wireshark 个人插件目录，重启即生效
+</code></pre>
+<h3 id="12-生成器替你挡掉的坑实测验证">1.2 生成器替你挡掉的坑（实测验证）</h3>
+<p>以下坑全部来自开发期真实踩坑记录，生成器已内置规避：</p>
+<table>
+<thead>
+<tr>
+<th>坑</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ByteArray:get()</code> 不存在</td>
+<td>Wireshark 4.6 的正确 API 是 <code>get_index()</code>；生成器统一使用后者</td>
+</tr>
+<tr>
+<td>数值字段不能传字符串值</td>
+<td><code>tree:add(pf, range, "文本")</code> 会抛异常，须 <code>add</code> 后 <code>append_text</code></td>
+</tr>
+<tr>
+<td>位域掩码与 bitfield 读取</td>
+<td>MSB 起算的 <code>bitfield(offset, width)</code> 与 mask 右移量极易算错</td>
+</tr>
+<tr>
+<td>数组偏移双重推进</td>
+<td>元素字段各自推进 off 后循环尾又加元素长度 → 越界读</td>
+</tr>
+<tr>
+<td>块注释 <code>-- [[</code> 多空格</td>
+<td>变单行注释，第二行直接语法错误</td>
+</tr>
+<tr>
+<td>Lua 版本断代</td>
+<td>4.4.0 起仅支持 Lua 5.3/5.4（原生位运算）；生成器锁定该基线</td>
+</tr>
+</tbody>
+</table>
+<h3 id="13-工作流总览">1.3 工作流总览</h3>
+<ol>
+<li><strong>定义</strong>：在 GUI 里搭字段树（或导入 JSON/CSV）</li>
+<li><strong>生成</strong>：点「生成 / 刷新 Lua」，状态栏显示定义是否合法</li>
+<li><strong>验证</strong>：测试台粘一段真实报文的 hex（或从 pcap 提取），看解析树</li>
+<li><strong>部署</strong>：菜单「部署 → 安装到 Wireshark」，重启 Wireshark</li>
+<li><strong>实抓</strong>：用 Wireshark 正常抓包/打开 pcap，协议自动解析</li>
+</ol>
+<hr />
+<h2 id="2-安装与启动">2. 安装与启动</h2>
+<h3 id="21-环境要求">2.1 环境要求</h3>
+<ul>
+<li>Python 3.10+</li>
+<li>Wireshark 4.4 或更高（仅「部署后实抓」需要；纯生成/测试台不需要装 Wireshark）</li>
+</ul>
+<h3 id="22-安装依赖">2.2 安装依赖</h3>
+<pre><code class="language-bash">cd protoforge            # 进入仓库根目录
+pip install -r requirements.txt
+</code></pre>
+<p>依赖内容：<code>PySide6</code>（GUI）、<code>lupa</code>（测试台 Lua 引擎，需 lua54 运行时）、<code>pytest</code>（跑测试）。</p>
+<h3 id="23-启动">2.3 启动</h3>
+<ul>
+<li><strong>图形界面</strong>：双击 <code>ProtoForge.bat</code>，或命令行 <code>python -m protoforge.app.main_window</code></li>
+<li><strong>命令行</strong>：<code>python -m protoforge --help</code>（见第 9 节）</li>
+</ul>
+<h3 id="24-自检可选">2.4 自检（可选）</h3>
+<pre><code class="language-bash">python -m protoforge selftest
+# 期望输出：[PASS] selftest OK（ProtoForge v0.9.0，绑定 [('udp.port', 65500, 'selft')]）
+</code></pre>
+<p>跑全量测试（75 个用例，含真实 tshark E2E）：</p>
+<pre><code class="language-bash">run_tests.bat        # 或：python -m pytest tests -q
+</code></pre>
+<hr />
+<h2 id="3-五分钟快速上手">3. 五分钟快速上手</h2>
+<p>以自带示例 SMSP（智慧农业传感器协议）走完整流程。</p>
+<h3 id="31-打开示例">3.1 打开示例</h3>
+<p>启动 GUI → 菜单「文件 → 打开 JSON…」→ 选择 <code>examples/smsp.json</code>。<br />
+左侧字段树出现 7 个顶层字段（magic/version/msgType/seqNum/payloadLen/payload/crc16），<br />
+状态栏显示「定义合法 ✓」。</p>
+<p><img alt="主窗口" src="screenshots/main_window.png" /></p>
+<h3 id="32-生成-lua">3.2 生成 Lua</h3>
+<p>点右下「生成 / 刷新 Lua ▶」按钮，右侧出现约 180 行完整 Lua 代码。<br />
+可「文件 → 导出 Lua…」保存，或直接进入下一步。</p>
+<p><img alt="生成的 Lua" src="screenshots/generated_lua.png" /></p>
+<h3 id="33-测试台验证">3.3 测试台验证</h3>
+<p>切到「测试台」标签 → 「从 pcap 提取…」→ 选 <code>examples/demo.pcap</code>（端口保持 5566）。<br />
+出现 4 帧：3 帧 PASS 无告警，第 4 帧 expert 列显示红色 CRC 错误（该包是故意损坏的）。</p>
+<p>点击某帧 → 下方左侧显示解析树；<strong>点击树中任意节点，右侧十六进制对应字节蓝色高亮</strong>。<br />
+试试点 <code>Sensor [0]</code>（对应 6 字节元素）和 <code>CRC-16/CCITT</code>（末尾 2 字节）。</p>
+<p><img alt="测试台" src="screenshots/testbench.png" /></p>
+<h3 id="34-部署进-wireshark">3.4 部署进 Wireshark</h3>
+<p>菜单「部署 → 安装到 Wireshark…」：</p>
+<p><img alt="部署对话框" src="screenshots/deploy_dialog.png" /></p>
+<ul>
+<li>插件名填 <code>smsp</code>（生成 <code>smsp.lua</code>）</li>
+<li>确认目标目录（Windows 默认 <code>%APPDATA%\Wireshark\plugins</code>）</li>
+<li>点「安装 / 覆盖安装」→ 重启 Wireshark</li>
+</ul>
+<h3 id="35-实抓验证">3.5 实抓验证</h3>
+<p>用 Wireshark 打开 <code>examples/demo.pcap</code>——每行 Info 列显示 <code>Telemetry, Seq=1</code> 等，<br />
+点开任意包可看到完整解析树，包括 Wireshark 原生位域渲染：</p>
+<pre><code>0001 .... = Protocol Version: 1
+.... 0001 = Message Type: 1
+    Sensor [0]
+        Sensor ID: 0x0102
+        1... .... = Online: True
+        .1.. .... = Battery Low: True
+        Raw Value: -125
+        Quality: Good (2)
+    CRC-16/CCITT: 0x875a [correct]
+</code></pre>
+<p>第 4 包会显示红色 Expert Info（Error/Checksum）——CRC 校验在工作。</p>
+<hr />
+<h2 id="4-界面详解">4. 界面详解</h2>
+<h3 id="41-布局">4.1 布局</h3>
+<pre><code>┌────────────────────────────────────────────────────────────┐
+│ 菜单栏：文件 / 部署 / 帮助                                    │
+├──────────────────────┬─────────────────────────────────────┤
+│ 协议定义（meta）       │  协议名 / 全名 / 绑定表 / 端口          │
+├──────────────────────┼─────────────────────────────────────┤
+│ 字段结构（树编辑器）    │  字段属性（表单）                      │
+│  ＋字段 ＋case        │                                     │
+│  ＋元素字段 ↑ ↓ 删除   ├─────────────────────────────────────┤
+│                      │  [生成的 Lua] [测试台]  ← 标签页        │
+├──────────────────────┴─────────────────────────────────────┤
+│ 状态栏：定义校验结果（合法 ✓ / ⚠ n 个定义问题：首个原因）        │
+└────────────────────────────────────────────────────────────┘
+</code></pre>
+<h3 id="42-协议定义meta区">4.2 协议定义（meta）区</h3>
+<table>
+<thead>
+<tr>
+<th>控件</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>协议名</td>
+<td>Lua 里 <code>Proto("名字", …)</code> 的短名，也是过滤器前缀（如 <code>smsp.magic</code>），须为英文标识符</td>
+</tr>
+<tr>
+<td>协议全名</td>
+<td>显示在解析树根节点</td>
+</tr>
+<tr>
+<td>绑定表</td>
+<td><code>udp.port</code> 或 <code>tcp.port</code>（v1 单绑定）</td>
+</tr>
+<tr>
+<td>端口</td>
+<td>逗号分隔，可多个（如 <code>5566,5567</code>）</td>
+</tr>
+</tbody>
+</table>
+<h3 id="43-字段结构树编辑器">4.3 字段结构（树编辑器）</h3>
+<ul>
+<li>列：字段名 / 类型（自动摘要，如 <code>uint:4bit</code>、<code>switch on msgType</code>、<code>array from sensorCount</code>、<code>⚑crc</code>）/ 显示名</li>
+<li><strong>＋字段</strong>：在当前选中层级追加字段（选中 case 或 element 内时追加到对应容器）</li>
+<li><strong>＋case</strong>：选中 switch 字段后可用，新增一个分支</li>
+<li><strong>＋元素字段</strong>：选中 array 或其 element 节点后可用</li>
+<li><strong>↑ / ↓</strong>：同级移动</li>
+<li><strong>删除</strong>：删除选中字段/case（element 容器本身不可删，删光其内容即可）</li>
+<li>树节点层级：顶层字段 → case N（switch）→ 字段…；数组 → element → 字段…</li>
+</ul>
+<h3 id="44-字段属性表单">4.4 字段属性（表单）</h3>
+<p>选中树中任意字段后按类型动态显示（无关控件自动隐藏语义：均显示但仅对应类型生效）：</p>
+<table>
+<thead>
+<tr>
+<th>属性</th>
+<th>适用类型</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>字段名</td>
+<td>全部</td>
+<td>英文标识符，全树唯一</td>
+</tr>
+<tr>
+<td>显示名</td>
+<td>全部</td>
+<td>解析树里的标签</td>
+</tr>
+<tr>
+<td>类型</td>
+<td>全部</td>
+<td>12 种，见第 5 节</td>
+</tr>
+<tr>
+<td>显示进制</td>
+<td>数值</td>
+<td>dec / hex</td>
+</tr>
+<tr>
+<td>位宽</td>
+<td>bitfield</td>
+<td>1-7 bit；<strong>连续 bitfield 自动打包成字节边界</strong></td>
+</tr>
+<tr>
+<td>长度</td>
+<td>string/bytes</td>
+<td>定长字节数</td>
+</tr>
+<tr>
+<td>常量校验</td>
+<td>数值</td>
+<td>如 <code>0x5A5A</code>，不匹配时挂 WARN expert</td>
+</tr>
+<tr>
+<td>CRC 复选框</td>
+<td>uint16</td>
+<td>标记为 CRC-16/CCITT-FALSE 字段（<strong>必须是最后一个顶层字段</strong>）</td>
+</tr>
+<tr>
+<td>枚举表</td>
+<td>数值/bitfield</td>
+<td>每行一条 <code>1=Telemetry</code></td>
+</tr>
+<tr>
+<td>switch 依据</td>
+<td>switch</td>
+<td>下拉列出在此之前声明的字段</td>
+</tr>
+<tr>
+<td>数组计数</td>
+<td>array</td>
+<td>固定次数 / 按字段计数（下拉选此前声明的字段）</td>
+</tr>
+</tbody>
+</table>
+<p>改动即时回写模型，状态栏实时刷新校验结果。</p>
+<h3 id="45-生成的-lua标签页">4.5 生成的 Lua（标签页）</h3>
+<p>「生成 / 刷新 Lua ▶」按当前定义重新生成；内容只读（改了也会被下次生成覆盖——<br />
+生成物属于机器，协议定义才属于你）。导出走菜单「文件 → 导出 Lua…」。</p>
+<h3 id="46-测试台标签页">4.6 测试台（标签页）</h3>
+<p>见第 8 节。</p>
+<hr />
+<h2 id="5-协议定义详解类型系统">5. 协议定义详解（类型系统）</h2>
+<h3 id="51-字段类型一览">5.1 字段类型一览</h3>
+<table>
+<thead>
+<tr>
+<th>类型</th>
+<th>字节</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>uint8/16/24/32</code></td>
+<td>1-4</td>
+<td>无符号整数，大端（网络序）</td>
+</tr>
+<tr>
+<td><code>int8/16/32</code></td>
+<td>1-4</td>
+<td>有符号整数（补码），大端</td>
+</tr>
+<tr>
+<td><code>uint</code> + width 1-7</td>
+<td>—</td>
+<td>位域。<strong>连续声明的位域自动打包</strong>，总位数必须凑成 8/16/24/32 的整字节边界；按声明顺序从 MSB 分配</td>
+</tr>
+<tr>
+<td><code>string</code></td>
+<td>size</td>
+<td>定长字符串</td>
+</tr>
+<tr>
+<td><code>bytes</code></td>
+<td>size</td>
+<td>定长原始字节（hex 显示）</td>
+</tr>
+<tr>
+<td><code>switch</code></td>
+<td>变长</td>
+<td>条件分支：按 <code>on</code> 字段的运行时值选择 case 字段组</td>
+</tr>
+<tr>
+<td><code>array</code></td>
+<td>变长</td>
+<td>重复结构：固定 <code>count</code> 次或按 <code>count_from</code> 字段的运行时值</td>
+</tr>
+</tbody>
+</table>
+<h3 id="52-位域打包规则重点">5.2 位域打包规则（重点）</h3>
+<p>连续的 bitfield 字段按<strong>声明顺序从最高位（MSB）往低位</strong>分配：</p>
+<pre><code>version (4bit) + msgType (4bit)  →  1 字节：version 占 bit7-4，msgType 占 bit3-0
+online(1) + batteryLow(1) + calibrated(1) + flagsRsv(5)  →  1 字节
+</code></pre>
+<p>校验规则：一组连续位域总宽必须是 8/16/24/32，否则报「不成字节边界」错误。<br />
+宽度为 1 的位域在 Wireshark 里渲染为 True/False 布尔量（<code>1... .... = Online: True</code>）。</p>
+<h3 id="53-switch条件分支">5.3 switch（条件分支）</h3>
+<ul>
+<li><code>on</code> 指向的字段必须<strong>在 switch 之前声明</strong>（顶层作用域）</li>
+<li>每个 case 一组字段列表，运行时按值匹配；未匹配值显示 <code>Payload (unknown msgType 9)</code></li>
+<li>case 内可继续嵌 array（如传感器列表）；v1 不允许 switch 嵌 switch（拆成两级字段即可表达大多数协议）</li>
+</ul>
+<h3 id="54-array数组">5.4 array（数组）</h3>
+<ul>
+<li><code>count</code>：固定次数（如 3 个阈值）</li>
+<li><code>count_from</code>：次数来自此前某字段的运行时值（如 <code>sensorCount</code>）</li>
+<li>元素必须是<strong>定长字段组合</strong>（数值/位域/string/bytes），元素大小自动计算</li>
+<li>每个元素渲染为独立子树 <code>Sensor [0]</code>、<code>Sensor [1]</code>…</li>
+</ul>
+<h3 id="55-crc-16ccitt-false">5.5 CRC-16/CCITT-FALSE</h3>
+<ul>
+<li>声明方式：末尾的 <code>uint16</code> 字段勾选 CRC</li>
+<li>语义：覆盖<strong>从帧首到该字段之前</strong>的全部字节；poly 0x1021、init 0xFFFF</li>
+<li>行为：比对一致显示 <code>CRC-16/CCITT: 0x875a [correct]</code>；不一致显示<br />
+<code>[incorrect, expected 0x…]</code> 并挂 Error/Checksum expert（Wireshark 里可按 <code>_ws.expert</code> 过滤）</li>
+</ul>
+<h3 id="56-自动附赠的防御性检查">5.6 自动附赠的防御性检查</h3>
+<p>生成器无需配置即包含：</p>
+<ul>
+<li><strong>过短包守卫</strong>：小于「固定头+尾」的包直接报 <code>Packet too short</code>（Error/Malformed）</li>
+<li><strong>payloadLen 语义检查</strong>：meta 里配 <code>length_check</code> 后，长度字段值与实际帧长不符时挂 WARN</li>
+<li><strong>尾随字节检查</strong>：解析完成后剩余字节挂 WARN（<code>N trailing bytes</code>）</li>
+<li><strong>幻数检查</strong>：配置 <code>const</code> 的字段不匹配时挂 WARN</li>
+<li><strong>Info 列填充</strong>：自动用「消息类型名 + Seq=N」填充（如 <code>Telemetry, Seq=1</code>）</li>
+</ul>
+<h3 id="57-校验错误对照表状态栏">5.7 校验错误对照表（状态栏）</h3>
+<table>
+<thead>
+<tr>
+<th>提示</th>
+<th>原因与修法</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>bitfield 组 … 共 N bit，不成字节边界</td>
+<td>补位域或调宽度凑 8/16/24/32</td>
+</tr>
+<tr>
+<td>switch 的 on 字段 … 未在其之前声明</td>
+<td>把依据字段移到 switch 前面</td>
+</tr>
+<tr>
+<td>array 需要 count 或 count_from 之一</td>
+<td>二选一填写</td>
+</tr>
+<tr>
+<td>crc16 字段必须是最后一个顶层字段</td>
+<td>移到末尾</td>
+</tr>
+<tr>
+<td>字段名重复</td>
+<td>全树唯一，改掉重名</td>
+</tr>
+<tr>
+<td>非法字段名</td>
+<td>只允许 <code>[A-Za-z_][A-Za-z0-9_]*</code></td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="6-json-格式参考">6. JSON 格式参考</h2>
+<p>完整 Schema 与字段说明见 <a href="PROTOCOL_SCHEMA.md">PROTOCOL_SCHEMA.md</a>。摘要：</p>
+<pre><code class="language-json">{
+  &quot;meta&quot;: {
+    &quot;name&quot;: &quot;smsp&quot;,                          // 必填，Lua 前缀
+    &quot;long_name&quot;: &quot;SmartMesh Sensor Protocol&quot;, // 显示名
+    &quot;length_check&quot;: { &quot;field&quot;: &quot;payloadLen&quot;, &quot;region&quot;: &quot;payload&quot; }  // 可选
+  },
+  &quot;bindings&quot;: [
+    { &quot;table&quot;: &quot;udp.port&quot;, &quot;ports&quot;: [5566, 5567] }
+  ],
+  &quot;fields&quot;: [
+    { &quot;name&quot;: &quot;magic&quot;, &quot;label&quot;: &quot;Magic&quot;, &quot;type&quot;: &quot;uint16&quot;,
+      &quot;display&quot;: &quot;hex&quot;, &quot;const&quot;: &quot;0x5A5A&quot; },
+    { &quot;name&quot;: &quot;version&quot;, &quot;type&quot;: &quot;uint&quot;, &quot;width&quot;: 4 },
+    { &quot;name&quot;: &quot;msgType&quot;, &quot;type&quot;: &quot;uint&quot;, &quot;width&quot;: 4,
+      &quot;enum&quot;: { &quot;1&quot;: &quot;Telemetry&quot;, &quot;2&quot;: &quot;Config&quot; } },
+    { &quot;name&quot;: &quot;payload&quot;, &quot;type&quot;: &quot;switch&quot;, &quot;on&quot;: &quot;msgType&quot;,
+      &quot;cases&quot;: {
+        &quot;1&quot;: [
+          { &quot;name&quot;: &quot;sensorCount&quot;, &quot;type&quot;: &quot;uint8&quot; },
+          { &quot;name&quot;: &quot;sensors&quot;, &quot;type&quot;: &quot;array&quot;, &quot;count_from&quot;: &quot;sensorCount&quot;,
+            &quot;element&quot;: [
+              { &quot;name&quot;: &quot;sensorId&quot;, &quot;type&quot;: &quot;uint16&quot;, &quot;display&quot;: &quot;hex&quot; },
+              { &quot;name&quot;: &quot;online&quot;, &quot;type&quot;: &quot;uint&quot;, &quot;width&quot;: 1 }
+            ] }
+        ]
+      } },
+    { &quot;name&quot;: &quot;crc16&quot;, &quot;type&quot;: &quot;uint16&quot;, &quot;display&quot;: &quot;hex&quot;,
+      &quot;crc16&quot;: &quot;ccitt_false&quot; }
+  ]
+}
+</code></pre>
+<p>字段属性键：<code>name/label/type/width/display/enum/const/size/on/cases/count/count_from/element/crc16</code>。</p>
+<hr />
+<h2 id="7-csv-格式参考">7. CSV 格式参考</h2>
+<p>CSV 适合<strong>平铺协议</strong>（无 switch/array）。表头列（顺序不限，<code>name</code>、<code>type</code> 必需）：</p>
+<pre><code>name,label,type,width,display,enum,const,size
+</code></pre>
+<p>指令行（以 <code>#</code> 开头，放表头之前）：</p>
+<pre><code># proto: name=flat long_name=FlatDemo
+# bind: udp.port 7777 8888
+</code></pre>
+<p>数据行示例：</p>
+<pre><code class="language-csv">magic,Magic,uint16,,hex,,0x5A5A,
+kind,Kind,uint,4,,1=A;2=B;3=C,,
+tag,Tag,string,,,,,3
+</code></pre>
+<ul>
+<li>enum 单元格语法：<code>1=A;2=B;3=C</code></li>
+<li>「文件 → 导入 CSV…」导入；「导出 CSV…」导出（含 switch/array 时会提示改用 JSON）</li>
+<li>完整示例：<code>examples/flat.csv</code></li>
+</ul>
+<hr />
+<h2 id="8-测试台使用指南">8. 测试台使用指南</h2>
+<h3 id="81-两种输入">8.1 两种输入</h3>
+<table>
+<thead>
+<tr>
+<th>方式</th>
+<th>操作</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>hex 直贴</td>
+<td>顶部输入框粘贴十六进制 → 「运行 hex ▶」</td>
+<td>空格可选、<code>0x</code> 前缀可选；适合单帧快速验证</td>
+</tr>
+<tr>
+<td>pcap 提取</td>
+<td>设端口 → 「从 pcap 提取…」选文件</td>
+<td>自动按端口（源或目的）提取全部应用层帧；仅支持 classic pcap</td>
+</tr>
+</tbody>
+</table>
+<h3 id="82-结果解读">8.2 结果解读</h3>
+<ul>
+<li><strong>帧列表</strong>：# / 结果（PASS=执行完成，FAIL=执行异常）/ Info / expert 摘要</li>
+<li><strong>解析树</strong>：与 Wireshark 详情窗格同构；红色行为 expert 告警</li>
+<li><strong>十六进制窗格</strong>：点击树节点 → 对应字节蓝色高亮（偏移与长度来自生成代码的真实 range）</li>
+</ul>
+<h3 id="83-常见-expert-含义">8.3 常见 expert 含义</h3>
+<table>
+<thead>
+<tr>
+<th>显示</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Expert Error(Checksum) CRC-16 mismatch</code></td>
+<td>CRC 不符（抓包丢包/协议理解错/字节序错）</td>
+</tr>
+<tr>
+<td><code>Expert Warn(Malformed) Packet too short</code></td>
+<td>帧短于最小结构</td>
+</tr>
+<tr>
+<td><code>Expert Warn(Malformed) N trailing bytes</code></td>
+<td>帧尾有多余字节（常见于长度字段算错或分帧错误）</td>
+</tr>
+<tr>
+<td><code>Expert Warn(Protocol) Constant mismatch</code></td>
+<td>幻数不符（端口被别的协议占用/偏移错）</td>
+</tr>
+</tbody>
+</table>
+<h3 id="84-工作原理为什么不用装-wireshark">8.4 工作原理（为什么不用装 Wireshark）</h3>
+<p>测试台内嵌 lupa(Lua 5.4) 与一套按 Wireshark 4.6 行为校准的 mock API<br />
+（Proto/ProtoField/TreeItem/Tvb/ByteArray/expert…），<strong>真实执行生成的 Lua 代码</strong>。<br />
+它校准过的行为包括位域掩码显示、<code>get_index()</code>、数值字段不接受字符串值等。<br />
+结论与真实 tshark 一致（本项目 E2E 测试双通道互验），但最终仍建议部署后用真机复核。</p>
+<hr />
+<h2 id="9-命令行cli参考">9. 命令行（CLI）参考</h2>
+<pre><code class="language-bash">python -m protoforge --version
+
+# 生成（spec 支持 .json 与 .csv；-o 省略时输出到 stdout）
+python -m protoforge generate examples/smsp.json -o out/smsp.lua
+
+# 验证：hex 单帧
+python -m protoforge verify out/smsp.lua --hex 5a5a1101000d00875a
+
+# 验证：从 pcap 提取（--port 默认 5566）
+python -m protoforge verify out/smsp.lua --pcap examples/demo.pcap --port 5566
+
+# 部署（--dir 省略时自动发现 Wireshark 个人插件目录）
+python -m protoforge deploy out/smsp.lua --name smsp [--dir &quot;路径&quot;]
+
+# 内置端到端自检
+python -m protoforge selftest
+</code></pre>
+<p>退出码：0=成功；1=有 FAIL 帧/无匹配帧；2=参数或加载错误。CI 友好。</p>
+<hr />
+<h2 id="10-部署与-wireshark-版本兼容">10. 部署与 Wireshark 版本兼容</h2>
+<h3 id="101-插件目录自动发现">10.1 插件目录（自动发现）</h3>
+<table>
+<thead>
+<tr>
+<th>平台</th>
+<th>个人插件目录</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Windows</td>
+<td><code>%APPDATA%\Wireshark\plugins\</code></td>
+</tr>
+<tr>
+<td>Linux</td>
+<td><code>~/.local/lib/wireshark/plugins/</code></td>
+</tr>
+<tr>
+<td>macOS</td>
+<td><code>~/.local/lib/wireshark/plugins/</code></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Lua 脚本放目录根</strong>（不进 <code>4.x</code> 版本子目录）——官方口径：大版本升级不丢插件。<br />
+卸载 = 删除对应 <code>.lua</code> 文件（部署对话框有卸载按钮）。</p>
+<h3 id="102-版本兼容">10.2 版本兼容</h3>
+<ul>
+<li>生成代码面向 <strong>Wireshark 4.4+</strong>（Lua 5.3/5.4，原生位运算）</li>
+<li>4.4.0 移除了 Lua 5.1/5.2 支持（有破坏性变更先例）；若你们公司还在 3.x，需评估后再用</li>
+<li>部署对话框会显示检测到的 tshark 版本；无 tshark 也可正常部署（只是无法本地验证）</li>
+</ul>
+<h3 id="103-安装后不生效排查顺序">10.3 安装后不生效排查顺序</h3>
+<ol>
+<li>完全退出 Wireshark 再重开（包括托盘）</li>
+<li>「帮助 → 关于 Wiireshark → 文件夹」确认个人插件目录路径与部署目标一致</li>
+<li>Wireshark 启动参数没有 <code>-o lua.enable:false</code></li>
+<li>用 <code>tshark -v</code> 确认版本 ≥ 4.4</li>
+</ol>
+<hr />
+<h2 id="11-故障排查-faq">11. 故障排查 FAQ</h2>
+<p><strong>Q1：状态栏提示「定义问题」，但我看不出哪里错？</strong><br />
+按第 5.7 节对照表排查；一次只修第一个错误（后面的可能是连锁）。</p>
+<p><strong>Q2：测试台树里值显示和预期差 16 倍/256 倍？</strong><br />
+典型字节序或位域分配问题：本工具全部按大端（网络序）；位域从 MSB 分配，<br />
+把 <code>version/msgType</code> 的声明顺序对调即可对调半字节。</p>
+<p><strong>Q3：CRC 永远 incorrect？</strong><br />
+按序检查：① CRC 覆盖域是「帧首到 CRC 字段前」，确认构造测试帧时没把 CRC 本身算进去；<br />
+② 算法是 CCITT-FALSE（init 0xFFFF），与 XMODEM（init 0x0000）不是同一个；<br />
+③ 用 <code>python -m protoforge verify --hex</code> 单帧调试最直观。</p>
+<p><strong>Q4：真实 Wireshark 里没解析，测试台却正常？</strong><br />
+① 端口号没对上（绑定的端口=报文目的端口或源端口）；<br />
+② TCP 流量大时 Wireshark 可能把 payload 当已知协议（如 5060/HTTP），换冷门端口；<br />
+③ 见 10.3 排查顺序。</p>
+<p><strong>Q5：<code>Lua Error: ... 'get_index'</code> 之类报错？</strong><br />
+不会出现——生成器统一用 4.6 实测 API。若你手改过生成物，恢复重新生成即可。</p>
+<p><strong>Q6：想解析的协议有「按长度字段跳过的变长 blob」？</strong><br />
+v1 的 bytes 是定长；变长元素（length_from）在路线图中（第 13 节）。<br />
+临时方案：把 blob 拆成 switch 或用数组近似。</p>
+<p><strong>Q7：生成的 Lua 我能改吗？</strong><br />
+能跑，但下次生成会覆盖。正确姿势是改协议定义。生成物头部已声明 GPLv2+，<br />
+你可以自由分发它。</p>
+<hr />
+<h2 id="12-授权与合规">12. 授权与合规</h2>
+<ul>
+<li><strong>生成的 <code>.lua</code> 文件</strong>：使用 Wireshark Lua 绑定，按官方 wiki「Beware the GPL」口径<br />
+  以 <strong>GPLv2+</strong> 分发。你在产品里使用/分发生成物时遵守 GPL 即可（内部使用无额外义务）。</li>
+<li><strong>ProtoForge 工具本体</strong>：不链接、不分发 Wireshark 代码，可闭源商业分发<br />
+  （「免费核心 + Pro」模式的法律基础，详见调研报告）。</li>
+<li><strong>商标</strong>：产品名 ProtoForge 不含 "Wireshark"；对外描述用 "for Wireshark"<br />
+  的兼容性表述，并注明非官方、与 Wireshark 基金会无关。</li>
+</ul>
+<hr />
+<h2 id="13-路线图与已知限制">13. 路线图与已知限制</h2>
+<p>v1（本版本）明确不做：</p>
+<table>
+<thead>
+<tr>
+<th>特性</th>
+<th>状态</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>变长元素数组（length_from）</td>
+<td>路线图</td>
+<td>元素尺寸依赖长度字段的场景</td>
+</tr>
+<tr>
+<td>switch 嵌套 switch</td>
+<td>路线图</td>
+<td>大多数协议可用平级多字段表达</td>
+</tr>
+<tr>
+<td>pcapng 读取</td>
+<td>路线图</td>
+<td>测试台目前仅 classic pcap（可用 Wireshark 另存为 pcap）</td>
+</tr>
+<tr>
+<td>Kaitai .ksy 导入</td>
+<td>路线图</td>
+<td>借力其协议描述生态</td>
+</tr>
+<tr>
+<td>AI 辅助生成</td>
+<td>路线图</td>
+<td>"spec → Lua" 的 prompt 链路已可行，产品化待定</td>
+</tr>
+<tr>
+<td>多绑定（同时 udp+tcp）</td>
+<td>v1 单绑定</td>
+<td>需要时改 JSON 手加 bindings 数组即可（生成器支持）</td>
+</tr>
+</tbody>
+</table>
+<p>已知限制：</p>
+<ul>
+<li>解析按大端（网络序）；小端协议 v1 需人工调整字段拆分</li>
+<li>TCP 流重组、heuristic 解绑不在 v1 范围</li>
+<li>GUI 的绑定编辑仅第一个绑定（多绑定走 JSON）</li>
+</ul>
+<hr />
+<p><em>ProtoForge v0.9.0 · 本手册随源码交付于 <code>docs/USER_MANUAL.md</code> · 截图由 <code>tools/make_screens.py</code> 生成</em></p>
+</main>
+</body>
+</html>

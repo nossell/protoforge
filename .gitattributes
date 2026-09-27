@@ -1,0 +1,6 @@
+# 统一换行符策略：bat 强制 CRLF（Windows cmd 要求），其余自动
+* text=auto
+*.bat text eol=crlf
+*.sh text eol=lf
+*.png binary
+*.pcap binary

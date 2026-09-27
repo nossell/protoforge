@@ -1,0 +1,53 @@
+{
+  "meta": {
+    "name": "smsp",
+    "long_name": "SmartMesh Sensor Protocol",
+    "desc": "示例私有协议：智慧农业传感器网格（ProtoForge 自带示例）",
+    "length_check": { "field": "payloadLen", "region": "payload" }
+  },
+  "bindings": [
+    { "table": "udp.port", "ports": [5566, 5567] }
+  ],
+  "fields": [
+    { "name": "magic",     "label": "Magic",            "type": "uint16", "display": "hex", "const": "0x5A5A" },
+    { "name": "version",   "label": "Protocol Version", "type": "uint", "width": 4 },
+    { "name": "msgType",   "label": "Message Type",     "type": "uint", "width": 4,
+      "enum": { "1": "Telemetry", "2": "Config", "3": "Event" } },
+    { "name": "seqNum",    "label": "Sequence Number",  "type": "uint8" },
+    { "name": "payloadLen","label": "Payload Length",   "type": "uint16" },
+    { "name": "payload",   "label": "Payload",          "type": "switch", "on": "msgType",
+      "cases": {
+        "1": [
+          { "name": "sensorCount", "label": "Sensor Count", "type": "uint8" },
+          { "name": "sensors",     "label": "Sensor",       "type": "array", "count_from": "sensorCount",
+            "element": [
+              { "name": "sensorId",  "label": "Sensor ID",  "type": "uint16", "display": "hex" },
+              { "name": "online",    "label": "Online",     "type": "uint", "width": 1 },
+              { "name": "batteryLow","label": "Battery Low","type": "uint", "width": 1 },
+              { "name": "calibrated","label": "Calibrated", "type": "uint", "width": 1 },
+              { "name": "flagsRsv",  "label": "Flags Rsv",  "type": "uint", "width": 5 },
+              { "name": "value",     "label": "Raw Value",  "type": "int16" },
+              { "name": "quality",   "label": "Quality",    "type": "uint8",
+                "enum": { "0": "Poor", "1": "Fair", "2": "Good", "3": "Excellent" } }
+            ]
+          }
+        ],
+        "2": [
+          { "name": "cfgVersion", "label": "Config Version",      "type": "uint8" },
+          { "name": "intervalMs", "label": "Report Interval (ms)","type": "uint16" },
+          { "name": "thresholds", "label": "Threshold",           "type": "array", "count": 3,
+            "element": [
+              { "name": "threshold", "label": "Alert Threshold", "type": "int16" }
+            ]
+          }
+        ],
+        "3": [
+          { "name": "eventCode", "label": "Event Code",     "type": "uint8",
+            "enum": { "1": "Boot", "2": "Reset", "3": "Low Battery", "4": "Sensor Failure" } },
+          { "name": "timestamp", "label": "Timestamp (UTC)","type": "uint32" }
+        ]
+      }
+    },
+    { "name": "crc16",     "label": "CRC-16/CCITT",     "type": "uint16", "display": "hex", "crc16": "ccitt_false" }
+  ]
+}

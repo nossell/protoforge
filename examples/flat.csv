@@ -1,0 +1,7 @@
+# proto: name=flat long_name=FlatDemo
+# bind: udp.port 7777
+name,label,type,width,display,enum,const,size
+magic,Magic,uint16,,hex,,0x5A5A,
+ver,Version,uint,4,,,,
+kind,Kind,uint,4,,1=A;2=B;3=C,,
+seq,Seq,uint8,,,,,
