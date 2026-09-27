@@ -15,6 +15,9 @@ def _enum_to_text(enum: dict | None) -> str:
     return "\n".join(f"{k}={v}" for k, v in (enum or {}).items())
 
 
+CRC_ITEMS = ["", "ccitt_false", "modbus", "xmodem", "sum8", "sum16"]
+
+
 class PropertyPanel(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -37,7 +40,7 @@ class PropertyPanel(QWidget):
         self.const_edit = QLineEdit()
         self.const_edit.setPlaceholderText("如 0x5A5A（留空不校验）")
         self.crc_combo = QComboBox()
-        self.crc_combo.addItems(["（无）", "ccitt_false", "modbus", "xmodem", "sum8", "sum16"])
+        self.crc_combo.addItems(["（无）"] + [x for x in CRC_ITEMS if x])
         self.term_check = QCheckBox("终止符字符串")
         self.term_spin = QSpinBox()
         self.term_spin.setRange(0, 255)
@@ -50,7 +53,7 @@ class PropertyPanel(QWidget):
         self.enum_edit.setFixedHeight(80)
         self.on_combo = QComboBox()
         self.count_mode = QComboBox()
-        self.count_mode.addItems(["固定次数", "按字段计数"])
+        self.count_mode.addItems(["固定次数", "按字段计数", "区域长度"])
         self.count_spin = QSpinBox()
         self.count_spin.setRange(1, 65535)
         self.count_from_combo = QComboBox()
@@ -127,20 +130,31 @@ class PropertyPanel(QWidget):
         self.size_spin.setValue(field.size or 1)
         self.const_edit.setText(field.const or "")
         self.crc_combo.setCurrentIndex(
-            ["", "ccitt_false", "modbus", "xmodem", "sum8", "sum16"].index(field.crc16 or "") if field.crc16 else 0)
+            CRC_ITEMS.index(field.crc16) if field.crc16 in CRC_ITEMS else 0)
         self.term_check.setChecked(field.terminated_by is not None)
         self.term_spin.setValue(field.terminated_by or 0)
         self.enum_edit.setPlainText(_enum_to_text(field.enum))
         if field.on:
             self.on_combo.setCurrentText(field.on)
-        if field.length_from:
-            self.length_from_combo.setCurrentText(field.length_from)
-        if field.count_from:
-            self.count_mode.setCurrentIndex(1)
-            self.count_from_combo.setCurrentText(field.count_from)
+        if field.type == "array":
+            if field.length_from:
+                self.count_mode.setCurrentIndex(2)
+                self.length_from_combo.setCurrentText(field.length_from)
+            elif field.count_from:
+                self.count_mode.setCurrentIndex(1)
+                self.count_from_combo.setCurrentText(field.count_from)
+            else:
+                self.count_mode.setCurrentIndex(0)
+                self.count_spin.setValue(field.count or 1)
         else:
-            self.count_mode.setCurrentIndex(0)
-            self.count_spin.setValue(field.count or 1)
+            if field.length_from:
+                self.length_from_combo.setCurrentText(field.length_from)
+            if field.count_from:
+                self.count_mode.setCurrentIndex(1)
+                self.count_from_combo.setCurrentText(field.count_from)
+            else:
+                self.count_mode.setCurrentIndex(0)
+                self.count_spin.setValue(field.count or 1)
         self._building = False
 
     def _apply(self):
@@ -166,8 +180,9 @@ class PropertyPanel(QWidget):
                 f.length_from, f.size = lf, 0
             else:
                 f.length_from, f.size = None, self.size_spin.value()
-        f.crc16 = ["", "ccitt_false", "modbus", "xmodem", "sum8", "sum16"][
-            self.crc_combo.currentIndex()] or None
+        elif t != "array":
+            f.length_from = None      # 数值等类型不适用，切换类型时清掉避免残留
+        f.crc16 = CRC_ITEMS[self.crc_combo.currentIndex()] or None
         if t == "string" and self.term_check.isChecked():
             f.terminated_by = self.term_spin.value()
             f.size, f.length_from = 0, None
@@ -181,9 +196,12 @@ class PropertyPanel(QWidget):
         if f.type == "switch":
             f.on = self.on_combo.currentText() or None
         if f.type == "array":
-            if self.count_mode.currentIndex() == 0:
-                f.count, f.count_from = self.count_spin.value(), None
+            mode = self.count_mode.currentIndex()
+            if mode == 0:
+                f.count, f.count_from, f.length_from = self.count_spin.value(), None, None
+            elif mode == 1:
+                f.count, f.count_from, f.length_from = None, self.count_from_combo.currentText() or None, None
             else:
-                f.count, f.count_from = None, self.count_from_combo.currentText() or None
+                f.count, f.count_from, f.length_from = None, None, self.length_from_combo.currentText() or None
         if self.on_change:
             self.on_change()

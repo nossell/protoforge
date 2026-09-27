@@ -283,6 +283,23 @@ def validate(p: Protocol) -> list:
                             errors.append(f"{where}/{f.name}: v1 元素内不允许嵌 {e.type}")
                         check_common(e, f"{where}/{f.name} 元素")
                     check_list(f.element, f"{where}/{f.name} 元素", dict(visible), False)
+                    # length_from 按「区域字节数 ÷ 元素尺寸」计数：元素必须全定长且尺寸 > 0，
+                    # 否则生成 math.floor(rgn / 0)（Lua 得 inf，循环失控）。
+                    if f.length_from:
+                        var = next((e for e in walk(f.element)
+                                    if e.length_from or e.terminated_by is not None
+                                    or e.type in ("switch", "array")), None)
+                        if var is not None:
+                            errors.append(f"{where}/{f.name}: length_from 数组的元素必须全为定长字段"
+                                          f"（'{var.name}' 是变长/嵌套结构，无法按字节区域计数）")
+                        else:
+                            try:
+                                esz = static_size(f.element)
+                            except ValidationError:
+                                esz = 0
+                            if esz <= 0:
+                                errors.append(f"{where}/{f.name}: length_from 数组的元素尺寸为 0，"
+                                              f"无法按字节区域计数")
             else:
                 if f.crc16 and not top_level:
                     errors.append(f"{where}/{f.name}: crc16 字段只能位于顶层末尾")

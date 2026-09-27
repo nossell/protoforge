@@ -116,6 +116,8 @@ def build(src_name: str, dst_name: str, title: str) -> None:
             },
         },
     )
+    # 文档间互链改写为 .html：浏览器直接点开 .md 会显示裸 Markdown（用户已报过一次）
+    body = re.sub(r'href="([A-Za-z0-9_./-]+)\.md(#[^"]*)?"', r'href="\1.html\2"', body)
 
     html = f"""<!DOCTYPE html>
 <html lang="zh-CN">

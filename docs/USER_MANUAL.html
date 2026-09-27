@@ -511,7 +511,7 @@ online(1) + batteryLow(1) + calibrated(1) + flagsRsv(5)  →  1 字节
 </table>
 <hr />
 <h2 id="6-json-格式参考">6. JSON 格式参考</h2>
-<p>完整 Schema 与字段说明见 <a href="PROTOCOL_SCHEMA.md">PROTOCOL_SCHEMA.md</a>。摘要：</p>
+<p>完整 Schema 与字段说明见 <a href="PROTOCOL_SCHEMA.html">PROTOCOL_SCHEMA.md</a>。摘要：</p>
 <pre><code class="language-json">{
   &quot;meta&quot;: {
     &quot;name&quot;: &quot;smsp&quot;,                          // 必填，Lua 前缀
@@ -703,8 +703,9 @@ python -m protoforge selftest
 <p><strong>Q5：<code>Lua Error: ... 'get_index'</code> 之类报错？</strong><br />
 不会出现——生成器统一用 4.6 实测 API。若你手改过生成物，恢复重新生成即可。</p>
 <p><strong>Q6：想解析的协议有「按长度字段跳过的变长 blob」？</strong><br />
-v1 的 bytes 是定长；变长元素（length_from）在路线图中（第 13 节）。<br />
-临时方案：把 blob 拆成 switch 或用数组近似。</p>
+用 <code>length_from</code>（v0.10 起支持）：string/bytes 按引用字段的字节数定长，数组按<br />
+「区域字节数 ÷ 元素尺寸」计数；越界会自动钳制并挂 Length mismatch 告警。<br />
+注意 <code>length_from</code> 数组的元素必须全为定长字段（变长元素在路线图中，见第 13 节）。</p>
 <p><strong>Q7：生成的 Lua 我能改吗？</strong><br />
 能跑，但下次生成会覆盖。正确姿势是改协议定义。生成物头部已声明 GPLv2+，<br />
 你可以自由分发它。</p>
@@ -744,7 +745,7 @@ v1 的 bytes 是定长；变长元素（length_from）在路线图中（第 13 �
 <tr>
 <td>length_from 变长元素数组</td>
 <td>路线图</td>
-<td>元素尺寸依赖长度字段的场景（当前 length_from 按元素大小整除计数）</td>
+<td>元素自身长度可变的场景（当前 length_from 数组要求元素全定长，变长元素会被校验拒绝）</td>
 </tr>
 <tr>
 <td>switch 嵌套于 array 元素</td>
@@ -776,7 +777,7 @@ v1 的 bytes 是定长；变长元素（length_from）在路线图中（第 13 �
 <p>已知限制：</p>
 <ul>
 <li>TCP 流重组、heuristic 之外的动态解绑不在范围内</li>
-<li>GUI 的启发式开关目前固定注册到 UDP；TCP 启发式请用 JSON 的 <code>meta.heuristic</code></li>
+<li>GUI 的启发式下拉可选 无 / udp / tcp；启用后需在绑定表中保留对应（udp/tcp）端口绑定</li>
 <li>详见 <code>docs/PROTOCOL_SCHEMA.md</code> 的校验规则清单与字段说明</li>
 </ul>
 <hr />

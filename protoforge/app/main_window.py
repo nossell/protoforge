@@ -7,7 +7,7 @@ import os
 from PySide6.QtCore import Qt, QUrl
 from PySide6.QtGui import QAction, QDesktopServices
 from PySide6.QtWidgets import (
-    QCheckBox, QComboBox, QFileDialog, QHBoxLayout, QLabel, QLineEdit,
+    QComboBox, QFileDialog, QHBoxLayout, QLabel, QLineEdit,
     QMainWindow, QMessageBox, QPlainTextEdit, QPushButton, QSplitter,
     QTabWidget, QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget,
 )
@@ -41,7 +41,9 @@ class MainWindow(QMainWindow):
         self._loading_bindings = False
         self.name_edit = QLineEdit(self.protocol.name)
         self.long_edit = QLineEdit(self.protocol.long_name)
-        self.heur_check = QCheckBox("启发式注册（首字段须带 const）")
+        self.heur_combo = QComboBox()
+        self.heur_combo.addItems(["（无）", "udp", "tcp"])
+        self.heur_combo.setToolTip("启发式注册：按首字段 const 判别，命中才接管（须有对应端口绑定）")
         self.bind_table = QTableWidget(0, 2)
         self.bind_table.setHorizontalHeaderLabels(["绑定表", "端口（逗号分隔）"])
         self.bind_table.setMaximumHeight(96)
@@ -56,7 +58,8 @@ class MainWindow(QMainWindow):
         row1.addWidget(self.name_edit)
         row1.addWidget(QLabel("协议全名"))
         row1.addWidget(self.long_edit)
-        row1.addWidget(self.heur_check)
+        row1.addWidget(QLabel("启发式注册"))
+        row1.addWidget(self.heur_combo)
         row2 = QVBoxLayout()
         row2.addWidget(QLabel("端口绑定（可多条：udp/tcp 同时监听）"))
         btns = QHBoxLayout()
@@ -79,7 +82,7 @@ class MainWindow(QMainWindow):
 
         for w in (self.name_edit, self.long_edit):
             w.editingFinished.connect(self._meta_changed)
-        self.heur_check.toggled.connect(self._meta_changed)
+        self.heur_combo.currentIndexChanged.connect(self._meta_changed)
 
         # ---- 中部 ----
         self.editor = FieldEditor()
@@ -194,20 +197,24 @@ class MainWindow(QMainWindow):
     def _bindings_from_table(self):
         if self._loading_bindings:
             return
+        old = list(self.protocol.bindings)
         bindings = []
         for r in range(self.bind_table.rowCount()):
             t_item = self.bind_table.item(r, 0)
             p_item = self.bind_table.item(r, 1)
             table = (t_item.text().strip() if t_item else "") or "udp.port"
             ports_raw = (p_item.text() if p_item else "").replace("，", ",")
+            if not ports_raw.strip():
+                continue                      # 空行视为删除该绑定
             try:
                 ports = [int(x, 0) for x in ports_raw.split(",") if x.strip()]
             except ValueError:
-                ports = []
+                # 非法输入保留原值，不静默改写用户绑定
+                ports = list(old[r].ports) if r < len(old) else []
             if ports:
                 bindings.append(Binding(table=table, ports=ports))
         if not bindings:
-            bindings = [Binding("udp.port", [5566])]
+            bindings = old or [Binding("udp.port", [5566])]
         self.protocol.bindings = bindings
         self._refresh()
 
@@ -215,7 +222,7 @@ class MainWindow(QMainWindow):
         p = self.protocol
         p.name = self.name_edit.text().strip() or p.name
         p.long_name = self.long_edit.text().strip() or p.long_name
-        p.heuristic = "udp" if self.heur_check.isChecked() else None
+        p.heuristic = [None, "udp", "tcp"][self.heur_combo.currentIndex()]
         self._refresh()
 
     def _on_field_selected(self, field):
@@ -267,7 +274,7 @@ class MainWindow(QMainWindow):
         self._loading_bindings = False
         self.name_edit.setText(self.protocol.name)
         self.long_edit.setText(self.protocol.long_name)
-        self.heur_check.setChecked(self.protocol.heuristic == "udp")
+        self.heur_combo.setCurrentIndex({"udp": 1, "tcp": 2}.get(self.protocol.heuristic or "", 0))
         self._populate_bindings()
         self.editor.bind(self.protocol)
         self._refresh()

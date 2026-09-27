@@ -447,8 +447,12 @@ class Generator:
         self.w("local len = buffer:len()")
         self.w(f"if len < {min_len} then")
         self.i += 1
-        self.w(f'tree:add_proto_expert_info(pe_too_short, string.format("packet too short: %d bytes (need >= {min_len})", len))')
-        self.w("return 0")
+        # 认领该帧：真机上返回 0 会丢弃已加的树节点与 expert（Data 接手），
+        # 端口已绑定却过短的包应显式报错而不是静默消失。
+        self.w(f'pinfo.cols.protocol = "{_lua(self.abbr.upper())}"')
+        self.w("local sh = tree:add(proto, buffer())")
+        self.w(f'sh:add_proto_expert_info(pe_too_short, string.format("packet too short: %d bytes (need >= {min_len})", len))')
+        self.w("return len")
         self.i -= 1
         self.w("end")
         self.w(f'pinfo.cols.protocol = "{_lua(self.abbr.upper())}"')
@@ -502,14 +506,15 @@ class Generator:
             self._emit_heuristic()
 
     def _emit_heuristic(self):
-        """启发式注册：以第一个字段（数值+const）做快速判别，命中才接管。"""
+        """启发式注册：以第一个字段（数值/位域+const）做快速判别，命中才接管。"""
         first = self.p.fields[0]
-        ctor, size, signed = PRIM_CTORS[first.type]
-        le = self._bo(first) == "le_"
         cv = int(first.const, 0)
         if is_bitfield(first):
-            probe = f"buffer(0, {first._bits // 8}):bitfield({first._bitoff}, {first.width})"
+            size = first._bits // 8          # 打包组字节数（_annotate 已算好）
+            probe = f"buffer(0, {size}):bitfield({first._bitoff}, {first.width})"
         else:
+            _, size, signed = PRIM_CTORS[first.type]
+            le = self._bo(first) == "le_"
             probe = f"buffer(0, {size}):{'le_' if le else ''}{'int()' if signed else 'uint()'}"
         self.w("-- 启发式注册：按首字段常量快速判别，命中才接管该报文")
         self.w("local function proto_heur(buffer, pinfo, tree)")

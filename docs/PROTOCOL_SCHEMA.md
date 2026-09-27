@@ -56,7 +56,7 @@
 | `string` | `size` ≥1 或 `length_from` 或 `terminated_by` | 三种定长/变长方式三选一 |
 | `bytes` | `size` ≥1 或 `length_from` | 定长或变长 |
 | `switch` | `on`: 字段名；`cases`: `{"1": [Field...], "default": [...]}` | `on` 须在之前声明且为数值；**switch 必须是所在列表的最后一项**；可嵌套（作为 case 末项）；`default` 为未命中兜底分支 |
-| `array` | `count` / `count_from` / `length_from` 三选一；`element` | 元素须全为定长字段；`length_from` 按元素大小整除计数 |
+| `array` | `count` / `count_from` / `length_from` 三选一；`element` | 元素须全为定长字段；`length_from` 按元素大小整除计数（元素含变长字段或尺寸为 0 会被校验拒绝） |
 | `uint16`/`uint8` + | `crc16`: 算法名 | 顶层末尾字段；算法：`ccitt_false`(uint16) / `modbus`(uint16, 传输低字节在前) / `xmodem`(uint16) / `sum8`(uint8) / `sum16`(uint16)，覆盖帧首至该字段前 |
 
 ## 校验规则清单（validate）
@@ -74,11 +74,12 @@
 7. 顶层最多一个 switch；顶层 array 仅支持 `length_from` 模式（count/count_from 数组请放入 case 内）
 8. 校验和字段必须位于顶层末尾且类型与算法匹配：
    ccitt_false / modbus / xmodem / sum16 → `uint16`；sum8 → `uint8`；case 内不允许校验和
-9. `array.count` 必须是 0-65535 的整数；`count` / `count_from` / `length_from` 三选一；元素内不允许嵌套 switch/array
+9. `array.count` 必须是 0-65535 的整数；`count` / `count_from` / `length_from` 三选一；元素内不允许嵌套 switch/array；
+   `length_from` 数组的元素必须**全为定长字段且尺寸 > 0**（否则无法按字节区域整除计数）
 10. `const` 仅支持数值/位域字段且不能为负数（无符号字段）；`terminated_by` 仅支持 string 且取值 0-255
 11. 至少一个绑定；端口 1-65535；表名仅 `udp.port`/`tcp.port`；多绑定（同时 udp+tcp）由 bindings 数组表达
 12. switch 至少一个 case 或 default；array 必须提供 element
-13. `meta.heuristic` 仅 udp/tcp；启用时首字段必须带 const 且存在对应端口绑定
+13. `meta.heuristic` 仅 udp/tcp；启用时首字段必须带 const 且为数值/位域，并存在对应端口绑定
 
 > 说明：label / long_name / enum 值为自由文本，生成时自动做 Lua 字符串转义与块注释消毒，
 > 可安全包含引号、反斜杠、换行与任意 Unicode。

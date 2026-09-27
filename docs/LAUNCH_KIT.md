@@ -1,7 +1,7 @@
 # Launch Kit（发布物料包）
 
-> 所有草稿可直接粘贴。`https://github.com/nossell/protoforge` 占位符在仓库公开后统一替换。
-> 发布顺序建议：GitHub 仓库公开 → Release v0.9.0 → 3 天后 r/wireshark → 1 周后 Show HN / V2EX → 持续答题。
+> 所有草稿可直接粘贴；仓库地址 `https://github.com/nossell/protoforge` 已上线，链接可直接使用。
+> 发布顺序建议：仓库已公开（v0.9.0）→ 本次 Release v0.14.0 → 3 天后 r/wireshark → 1 周后 Show HN / V2EX → 持续答题。
 
 ## 0. 仓库元信息（创建时填）
 

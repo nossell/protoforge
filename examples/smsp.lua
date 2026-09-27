@@ -1,6 +1,6 @@
 --[[
     SMSP - SmartMesh Sensor Protocol dissector
-    由 ProtoForge v0.10.0 生成于 2026-09-28
+    由 ProtoForge v0.14.0 生成于 2026-09-28
     目标：Wireshark 4.4+（Lua 5.3/5.4）
     授权：使用 Wireshark Lua 绑定的脚本须按 GPLv2+ 分发
     （官方 wiki「Beware the GPL」口径）；可自由使用与修改。
@@ -99,8 +99,10 @@ end
 function proto.dissector(buffer, pinfo, tree)
     local len = buffer:len()
     if len < 8 then
-        tree:add_proto_expert_info(pe_too_short, string.format("packet too short: %d bytes (need >= 8)", len))
-        return 0
+        pinfo.cols.protocol = "SMSP"
+        local sh = tree:add(proto, buffer())
+        sh:add_proto_expert_info(pe_too_short, string.format("packet too short: %d bytes (need >= 8)", len))
+        return len
     end
     pinfo.cols.protocol = "SMSP"
     local st = tree:add(proto, buffer())

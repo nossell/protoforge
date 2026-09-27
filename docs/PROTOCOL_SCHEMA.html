@@ -256,7 +256,7 @@ a{color:var(--accent)}
 <tr>
 <td><code>array</code></td>
 <td><code>count</code> / <code>count_from</code> / <code>length_from</code> 三选一；<code>element</code></td>
-<td>元素须全为定长字段；<code>length_from</code> 按元素大小整除计数</td>
+<td>元素须全为定长字段；<code>length_from</code> 按元素大小整除计数（元素含变长字段或尺寸为 0 会被校验拒绝）</td>
 </tr>
 <tr>
 <td><code>uint16</code>/<code>uint8</code> +</td>
@@ -280,11 +280,12 @@ a{color:var(--accent)}
 <li>顶层最多一个 switch；顶层 array 仅支持 <code>length_from</code> 模式（count/count_from 数组请放入 case 内）</li>
 <li>校验和字段必须位于顶层末尾且类型与算法匹配：<br />
    ccitt_false / modbus / xmodem / sum16 → <code>uint16</code>；sum8 → <code>uint8</code>；case 内不允许校验和</li>
-<li><code>array.count</code> 必须是 0-65535 的整数；<code>count</code> / <code>count_from</code> / <code>length_from</code> 三选一；元素内不允许嵌套 switch/array</li>
+<li><code>array.count</code> 必须是 0-65535 的整数；<code>count</code> / <code>count_from</code> / <code>length_from</code> 三选一；元素内不允许嵌套 switch/array；<br />
+<code>length_from</code> 数组的元素必须<strong>全为定长字段且尺寸 &gt; 0</strong>（否则无法按字节区域整除计数）</li>
 <li><code>const</code> 仅支持数值/位域字段且不能为负数（无符号字段）；<code>terminated_by</code> 仅支持 string 且取值 0-255</li>
 <li>至少一个绑定；端口 1-65535；表名仅 <code>udp.port</code>/<code>tcp.port</code>；多绑定（同时 udp+tcp）由 bindings 数组表达</li>
 <li>switch 至少一个 case 或 default；array 必须提供 element</li>
-<li><code>meta.heuristic</code> 仅 udp/tcp；启用时首字段必须带 const 且存在对应端口绑定</li>
+<li><code>meta.heuristic</code> 仅 udp/tcp；启用时首字段必须带 const 且为数值/位域，并存在对应端口绑定</li>
 </ol>
 <blockquote>
 <p>说明：label / long_name / enum 值为自由文本，生成时自动做 Lua 字符串转义与块注释消毒，<br />

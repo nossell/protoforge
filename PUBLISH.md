@@ -11,7 +11,7 @@ ProtoForge 达到"可对外发布"状态的操作清单。执行前逐项打勾�
 
 ## 2. 质量门禁
 
-- [ ] `run_tests.bat`（或 `python -m pytest tests -q`）全绿（当前 75 例，含真实 tshark E2E）
+- [ ] `run_tests.bat`（或 `python -m pytest tests -q`）全绿（当前 162 例，含真实 tshark E2E）
 - [ ] `python -m protoforge selftest` 输出 PASS
 - [ ] 双击 ProtoForge.bat 走一遍：打开示例 → 生成 → 测试台 pcap → 部署对话框
 - [ ] docs/USER_MANUAL.html 目录锚点可跳转、无裸 md

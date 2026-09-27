@@ -94,7 +94,7 @@ def read_pcapng_data(data: bytes) -> list[Packet]:
             saw_shb = True
             linktype = None      # 新 Section 重置接口
             blen = struct.unpack(endian + "I", data[off + 4:off + 8])[0]
-            if blen < 12 or blen % 4 or off + blen > len(data):
+            if blen < 16 or blen % 4 or off + blen > len(data):   # 至少容得下字节序魔数
                 raise PcapError(f"pcapng 块长度非法（offset {off}, len {blen}）")
             off += blen
             continue
@@ -106,6 +106,8 @@ def read_pcapng_data(data: bytes) -> list[Packet]:
             raise PcapError(f"pcapng 块长度非法（offset {off}, len {blen}）")
         body = data[off + 8:off + blen - 4]
         if btype == 0x00000001:                      # Interface Description Block
+            if len(body) < 8:
+                raise PcapError(f"pcapng IDB 过短（{len(body)} 字节）")
             if linktype is None:
                 linktype = struct.unpack(endian + "H", body[0:2])[0] & 0xFFFF
                 if linktype != 1:

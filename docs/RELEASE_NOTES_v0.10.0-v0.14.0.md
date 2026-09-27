@@ -1,6 +1,6 @@
 # ProtoForge v0.10.0 – v0.14.0 五轮功能迭代合并说明
 
-> 每轮独立提交、独立全量回归（145 个测试）。合并发布前供审查。
+> 每轮独立提交、独立全量回归（当前 162 个测试）。合并发布前供审查。
 
 ## v0.10.0 — 字节序与变长字段
 
@@ -41,8 +41,14 @@
 
 ## 质量与文档
 
-- 测试 103 → **145 个**（每轮新增回归：字节序/变长 12、校验和/终止符 15、嵌套/default 8、
-  pcapng/多绑定 6、启发式/车载 6 等）
+- 测试 102 → **162 个**（每轮新增回归：字节序/变长 12、校验和/终止符 11、嵌套/default 7、
+  pcapng/多绑定 6、启发式/车载 6；另加真实 tshark 高级 E2E 9 个 + 审查修复回归 8 个）
+- **新增 `tests/test_e2e_tshark_advanced.py`**：五轮新特性逐项过真机 tshark——
+  小端/字段级大端覆盖、MODBUS 校验和 correct/incorrect、终止符与 (unterminated)、
+  嵌套 switch 三级分支与 default、length_from 字符串/数组、启发式在**未绑定端口**上接管报文
 - `docs/PROTOCOL_SCHEMA.md` 同步全部新键与校验规则；`docs/USER_MANUAL.md` §13 更新
-- 已知限制（未做）：length_from 变长元素数组、case 元素内 switch、pcapng 写入、
-  Kaitai 导入、AI 辅助生成
+- 发布前独立审查（deepseek）修复：heuristic 首字段为位域时崩溃、length_from 数组
+  变长元素生成 `math.floor(rgn/0)` 死循环、过短帧返回 0 导致 expert 在真机不可见、
+  GUI 数组 length_from 被改写 / heuristic=tcp 加载丢失、pcapng 畸形块异常类型
+- 已知限制（未做）：length_from 数组的变长元素（当前要求元素全定长）、case 元素内 switch、
+  pcapng 写入、Kaitai 导入、AI 辅助生成
