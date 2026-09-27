@@ -46,6 +46,7 @@ class Field:
     byte_order: Optional[str] = None                  # 覆盖协议默认字节序（数值字段）
     length_from: Optional[str] = None                 # string/bytes/array：区域长度来源字段名
     terminated_by: Optional[int] = None               # string：终止符字节（如 0x00）
+    default: Optional[list] = None                    # switch：未命中任何 case 时的字段列表
 
 
 @dataclass
@@ -85,12 +86,14 @@ def field_size(f: Field) -> Optional[int]:
 
 
 def walk(fields: list) -> Iterator[Field]:
-    """深度优先遍历全部字段（含 switch case 与 array element 内部）。"""
+    """深度优先遍历全部字段（含 switch case、default 与 array element 内部）。"""
     for f in fields:
         yield f
         if f.type == "switch":
             for case in f.cases.values():
                 yield from walk(case)
+            if f.default:
+                yield from walk(f.default)
         elif f.type == "array" and f.element:
             yield from walk(f.element)
 
@@ -111,6 +114,8 @@ def _scan_bit_groups(fields: list, errors: list, where: str) -> list:
             if f.type == "switch":
                 for key, case in f.cases.items():
                     groups.extend(_scan_bit_groups(case, errors, f"{where}/case {key}"))
+                if f.default:
+                    groups.extend(_scan_bit_groups(f.default, errors, f"{where}/default"))
             elif f.type == "array" and f.element:
                 groups.extend(_scan_bit_groups(f.element, errors, f"{where}/{f.name} 元素"))
     bits = sum(x.width for x in grp)
@@ -233,8 +238,8 @@ def validate(p: Protocol) -> list:
                 seen_switch = f
                 if not f.on:
                     errors.append(f"{where}/{f.name}: switch 缺少 on")
-                if not f.cases:
-                    errors.append(f"{where}/{f.name}: switch 至少需要一个 case")
+                if not f.cases and not f.default:
+                    errors.append(f"{where}/{f.name}: switch 至少需要一个 case 或 default")
                 ref = visible.get(f.on or "")
                 if f.on and ref is None:
                     errors.append(f"{where}/{f.name}: on 字段 '{f.on}' 未在其之前声明（或在不可见作用域）")
@@ -244,6 +249,8 @@ def validate(p: Protocol) -> list:
                     if not isinstance(key, int):
                         errors.append(f"{where}/{f.name}: case 键必须是整数")
                     check_list(case, f"{where}/{f.name}/case {key}", dict(visible), False)
+                if f.default is not None:
+                    check_list(f.default, f"{where}/{f.name}/default", dict(visible), False)
             elif f.type == "array":
                 sizing = sum(x is not None for x in (f.count, f.count_from, f.length_from))
                 if sizing == 0:

@@ -100,6 +100,12 @@ class FieldEditor(QWidget):
                 it.addChild(cit)
                 for cf in case:
                     self._add_items(cit, cf)
+            if f.default is not None:
+                dit = QTreeWidgetItem(["case default", f"{len(f.default)} 字段", ""])
+                dit.setData(0, Qt.UserRole, ("default", f))
+                it.addChild(dit)
+                for cf in f.default:
+                    self._add_items(dit, cf)
         elif f.type == "array" and f.element:
             eit = QTreeWidgetItem(["element", f"{len(f.element)} 字段", ""])
             eit.setData(0, Qt.UserRole, ("element", f))
@@ -136,6 +142,8 @@ class FieldEditor(QWidget):
         if kind == "case":
             key = sel[2]
             return f.cases[key], None
+        if kind == "default":
+            return f.default, None
         if kind == "element":
             return f.element, None
         # 普通字段：找它的父容器
@@ -174,8 +182,19 @@ class FieldEditor(QWidget):
             QMessageBox.information(self, "提示", "请先选中 switch 字段")
             return
         f = sel[1]
-        key, ok = QInputDialog.getInt(self, "新增 case", "case 键值（整数）：", max(f.cases.keys(), default=0) + 1)
+        text, ok = QInputDialog.getText(
+            self, "新增 case", "case 键值（整数；输入 default 表示兜底分支）：")
         if not ok:
+            return
+        t = text.strip().lower()
+        if t == "default":
+            if f.default is None:
+                f.default = []
+            return self._changed()
+        try:
+            key = int(t, 0)
+        except ValueError:
+            QMessageBox.information(self, "提示", "case 键值必须是整数或 default")
             return
         f.cases[key] = []
         self._changed()
@@ -189,6 +208,8 @@ class FieldEditor(QWidget):
         if kind == "case":
             key = sel[2]
             f.cases.pop(key, None)
+        elif kind == "default":
+            f.default = None
         elif kind == "element":
             return  # element 容器节点不可删
         else:

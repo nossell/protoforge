@@ -29,7 +29,11 @@ def _parse_field(d: dict) -> Field:
     if d.get("enum"):
         f.enum = {int(k, 0) if isinstance(k, str) else int(k): str(v) for k, v in d["enum"].items()}
     if d.get("cases"):
-        f.cases = {int(k): [_parse_field(x) for x in v] for k, v in d["cases"].items()}
+        for k, v in d["cases"].items():
+            if k == "default":
+                f.default = [_parse_field(x) for x in v]
+            else:
+                f.cases[int(k)] = [_parse_field(x) for x in v]
     if d.get("element"):
         f.element = [_parse_field(x) for x in d["element"]]
     return f
@@ -49,8 +53,10 @@ def _field_to_dict(f: Field) -> dict:
         d["size"] = f.size
     if f.on:
         d["on"] = f.on
-    if f.cases:
+    if f.cases or f.default:
         d["cases"] = {str(k): [_field_to_dict(x) for x in v] for k, v in f.cases.items()}
+        if f.default is not None:
+            d["cases"]["default"] = [_field_to_dict(x) for x in f.default]
     if f.count is not None:
         d["count"] = f.count
     if f.count_from:

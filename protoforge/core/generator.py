@@ -198,6 +198,8 @@ class Generator:
             if f.type == "switch":
                 for case in f.cases.values():
                     self._annotate(case)
+                if f.default:
+                    self._annotate(f.default)
             elif f.type == "array" and f.element:
                 self._annotate(f.element)
 
@@ -376,7 +378,10 @@ class Generator:
             self.i -= 1
         self.w("else")
         self.i += 1
-        self.w(f'st_{nm}:append_text(string.format(" (unknown {on} %d)", v_{on}))')
+        if f.default is not None:
+            self._emit_fields(f.default, f"st_{nm}")
+        else:
+            self.w(f'st_{nm}:append_text(string.format(" (unknown {on} %d)", v_{on}))')
         self.i -= 1
         self.w("end")
 
