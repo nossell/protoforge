@@ -7,8 +7,9 @@ import os
 from PySide6.QtCore import Qt, QUrl
 from PySide6.QtGui import QAction, QDesktopServices
 from PySide6.QtWidgets import (
-    QComboBox, QFileDialog, QLabel, QLineEdit, QMainWindow, QMessageBox,
-    QPlainTextEdit, QPushButton, QSplitter, QTabWidget, QVBoxLayout, QWidget,
+    QComboBox, QFileDialog, QHBoxLayout, QLabel, QLineEdit, QMainWindow,
+    QMessageBox, QPlainTextEdit, QPushButton, QSplitter, QTabWidget,
+    QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget,
 )
 
 from .. import __version__
@@ -37,11 +38,17 @@ class MainWindow(QMainWindow):
         )
 
         # ---- 顶部协议元信息 ----
+        self._loading_bindings = False
         self.name_edit = QLineEdit(self.protocol.name)
         self.long_edit = QLineEdit(self.protocol.long_name)
-        self.table_combo = QComboBox()
-        self.table_combo.addItems(["udp.port", "tcp.port"])
-        self.ports_edit = QLineEdit(",".join(map(str, self.protocol.bindings[0].ports)))
+        self.bind_table = QTableWidget(0, 2)
+        self.bind_table.setHorizontalHeaderLabels(["绑定表", "端口（逗号分隔）"])
+        self.bind_table.setMaximumHeight(96)
+        self.btn_add_bind = QPushButton("＋绑定")
+        self.btn_del_bind = QPushButton("删除绑定")
+        self.btn_add_bind.clicked.connect(self._add_binding_row)
+        self.btn_del_bind.clicked.connect(self._del_binding_row)
+        self.bind_table.itemChanged.connect(self._bindings_from_table)
         meta = QVBoxLayout()
         row1 = QVBoxLayout()
         for lbl, w in (("协议名（Lua 前缀）", self.name_edit), ("协议全名", self.long_edit)):
@@ -50,11 +57,13 @@ class MainWindow(QMainWindow):
             box.addWidget(w)
             row1.addLayout(box)
         row2 = QVBoxLayout()
-        for lbl, w in (("绑定表", self.table_combo), ("端口（逗号分隔）", self.ports_edit)):
-            box = QVBoxLayout()
-            box.addWidget(QLabel(lbl))
-            box.addWidget(w)
-            row2.addLayout(box)
+        row2.addWidget(QLabel("端口绑定（可多条：udp/tcp 同时监听）"))
+        btns = QHBoxLayout()
+        btns.addWidget(self.btn_add_bind)
+        btns.addWidget(self.btn_del_bind)
+        btns.addStretch(1)
+        row2.addLayout(btns)
+        row2.addWidget(self.bind_table)
         meta_wrap = QWidget()
         mrow = QSplitter()
         w1, w2 = QWidget(), QWidget()
@@ -65,11 +74,10 @@ class MainWindow(QMainWindow):
         meta.addWidget(QLabel("协议定义（meta）"))
         meta.addWidget(mrow)
         meta_wrap.setLayout(meta)
-        meta_wrap.setMaximumHeight(130)
+        meta_wrap.setMaximumHeight(150)
 
-        for w in (self.name_edit, self.long_edit, self.ports_edit):
+        for w in (self.name_edit, self.long_edit):
             w.editingFinished.connect(self._meta_changed)
-        self.table_combo.currentIndexChanged.connect(self._meta_changed)
 
         # ---- 中部 ----
         self.editor = FieldEditor()
@@ -160,19 +168,51 @@ class MainWindow(QMainWindow):
         m_help.addAction(a)
 
     # ---------- 模型同步 ----------
+    def _populate_bindings(self):
+        self._loading_bindings = True
+        rows = len(self.protocol.bindings) or 1
+        self.bind_table.setRowCount(rows)
+        for i, b in enumerate(self.protocol.bindings):
+            self.bind_table.setItem(i, 0, QTableWidgetItem(b.table))
+            self.bind_table.setItem(i, 1, QTableWidgetItem(",".join(map(str, b.ports))))
+        if not self.protocol.bindings:
+            self.bind_table.setItem(0, 0, QTableWidgetItem("udp.port"))
+            self.bind_table.setItem(0, 1, QTableWidgetItem(""))
+        self._loading_bindings = False
+
+    def _add_binding_row(self):
+        self.bind_table.setRowCount(self.bind_table.rowCount() + 1)
+
+    def _del_binding_row(self):
+        row = self.bind_table.currentRow()
+        if row >= 0:
+            self.bind_table.removeRow(row)
+            self._bindings_from_table()
+
+    def _bindings_from_table(self):
+        if self._loading_bindings:
+            return
+        bindings = []
+        for r in range(self.bind_table.rowCount()):
+            t_item = self.bind_table.item(r, 0)
+            p_item = self.bind_table.item(r, 1)
+            table = (t_item.text().strip() if t_item else "") or "udp.port"
+            ports_raw = (p_item.text() if p_item else "").replace("，", ",")
+            try:
+                ports = [int(x, 0) for x in ports_raw.split(",") if x.strip()]
+            except ValueError:
+                ports = []
+            if ports:
+                bindings.append(Binding(table=table, ports=ports))
+        if not bindings:
+            bindings = [Binding("udp.port", [5566])]
+        self.protocol.bindings = bindings
+        self._refresh()
+
     def _meta_changed(self):
         p = self.protocol
         p.name = self.name_edit.text().strip() or p.name
         p.long_name = self.long_edit.text().strip() or p.long_name
-        try:
-            ports = [int(x, 0) for x in self.ports_edit.text().replace("，", ",").split(",") if x.strip()]
-        except ValueError:
-            ports = []
-        if not p.bindings:
-            p.bindings.append(Binding())
-        p.bindings[0].table = self.table_combo.currentText()
-        if ports:
-            p.bindings[0].ports = ports
         self._refresh()
 
     def _on_field_selected(self, field):
@@ -223,9 +263,7 @@ class MainWindow(QMainWindow):
     def _reload_all(self):
         self.name_edit.setText(self.protocol.name)
         self.long_edit.setText(self.protocol.long_name)
-        if self.protocol.bindings:
-            self.table_combo.setCurrentText(self.protocol.bindings[0].table)
-            self.ports_edit.setText(",".join(map(str, self.protocol.bindings[0].ports)))
+        self._populate_bindings()
         self.editor.bind(self.protocol)
         self._refresh()
 

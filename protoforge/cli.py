@@ -85,7 +85,16 @@ def _collect_frames(args):
         except (ValueError, OSError) as e:
             print(f"[错误] 读取 pcap 失败: {e}", file=sys.stderr)
             return None
-        return extract_frames(pkts, {args.port})
+        ports = set()
+        for x in str(args.port).replace("，", ",").split(","):
+            x = x.strip()
+            if x:
+                try:
+                    ports.add(int(x, 0))
+                except ValueError:
+                    print(f"[错误] 非法端口: {x}", file=sys.stderr)
+                    return None
+        return extract_frames(pkts, ports)
     return None
 
 
@@ -198,8 +207,9 @@ def build_parser() -> argparse.ArgumentParser:
     v = sub.add_parser("verify", help="用内置引擎执行 Lua 并解析测试帧")
     v.add_argument("lua", help="生成的 .lua 文件")
     v.add_argument("--hex", help="十六进制帧（空格可选）")
-    v.add_argument("--pcap", help="pcap 文件（classic pcap）")
-    v.add_argument("--port", type=int, default=5566, help="pcap 提取端口（默认 5566）")
+    v.add_argument("--pcap", help="pcap / pcapng 文件")
+    v.add_argument("--port", default="5566",
+                   help="pcap 提取端口，逗号分隔多个（默认 5566）")
     v.set_defaults(func=cmd_verify)
 
     d = sub.add_parser("deploy", help="安装 Lua 到 Wireshark 个人插件目录")
