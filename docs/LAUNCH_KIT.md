@@ -1,6 +1,6 @@
 # Launch Kit（发布物料包）
 
-> 所有草稿可直接粘贴。`[REPO_URL]` 占位符在仓库公开后统一替换。
+> 所有草稿可直接粘贴。`https://github.com/nossell/protoforge` 占位符在仓库公开后统一替换。
 > 发布顺序建议：GitHub 仓库公开 → Release v0.9.0 → 3 天后 r/wireshark → 1 周后 Show HN / V2EX → 持续答题。
 
 ## 0. 仓库元信息（创建时填）
@@ -54,8 +54,8 @@ a hex string without touching a real capture.
 It targets Wireshark 4.4+ and comes with a worked example (JSON → dissector → demo.pcap)
 plus a full test suite including real-tshark E2E.
 
-Repo: [REPO_URL]
-Docs: [REPO_URL]/blob/main/docs/USER_MANUAL.md
+Repo: https://github.com/nossell/protoforge
+Docs: https://github.com/nossell/protoforge/blob/main/docs/USER_MANUAL.md
 
 It's early (v0.9), so I'd love feedback on the definition format — especially from folks
 who dissect automotive or IoT protocols: what's missing that would make you actually use
@@ -80,7 +80,7 @@ installing anything, and a CLI for CI.
 
 An end-to-end example is in the repo: a fictional sensor protocol, its definition, the
 generated dissector, and a pcap you can dissect after a one-command install.
-Repo: [REPO_URL]  |  Docs: [REPO_URL]/blob/main/docs/USER_MANUAL.md
+Repo: https://github.com/nossell/protoforge  |  Docs: https://github.com/nossell/protoforge/blob/main/docs/USER_MANUAL.md
 
 Happy to answer questions about the generator design and the mock-engine approach.
 ```
@@ -98,7 +98,7 @@ Happy to answer questions about the generator design and the mock-engine approac
 dissector，位域/枚举/条件分支/变长数组/CRC 全支持，还内置了一个不用装 Wireshark 的
 测试引擎（lupa），粘段 hex 就能看解析树。带 CLI，CI 里也能跑。
 
-仓库：[REPO_URL]
+仓库：https://github.com/nossell/protoforge
 示例协议 + demo.pcap 在 examples/ 下，装完用 Wireshark 打开就能看效果。
 
 求反馈，尤其想听车载 SOME/IP / DoIP 方向的意见：定义格式还缺什么？
@@ -109,7 +109,7 @@ dissector，位域/枚举/条件分支/变长数组/CRC 全支持，还内置了
 在搜"how to write dissector / lua dissector for custom protocol"的老问题下答题：
 先正常、具体地回答问题（这段必须真答，不能纯广告），结尾一句：
 `If you do this often, I maintain an open-source generator that covers this pattern
-(bitfields/switch/arrays/CRC): [REPO_URL]`
+(bitfields/switch/arrays/CRC): https://github.com/nossell/protoforge`
 
 ## 6. 发布后 30 天节奏
 
