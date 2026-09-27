@@ -57,8 +57,13 @@ result is verified before it ever touches a real capture.
 
 ## Status
 
-v0.9.0 — feature-complete first release. 75 tests (unit / integration / GUI offscreen /
-real-tshark E2E). Roadmap and known limitations: see `docs/USER_MANUAL.md` (section 13).
+v0.14.0 — five feature rounds on top of the first release: big/little endian (protocol
+and field level), variable-length fields/arrays (`length_from`), a checksum family
+(CRC-16 CCITT-FALSE / MODBUS / XMODEM, SUM8/16), NUL-terminated strings, nested switches
+with a default branch, pcapng input, multiple udp+tcp bindings, and heuristic
+registration. 163 tests (unit / integration / GUI offscreen / real-tshark E2E, including
+a dedicated suite that drives every feature round through real tshark). Roadmap and
+known limitations: see `docs/USER_MANUAL.md` (section 13).
 
 ## Commercial & support
 

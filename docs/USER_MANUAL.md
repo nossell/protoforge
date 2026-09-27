@@ -1,6 +1,6 @@
 # ProtoForge 使用手册
 
-> 版本 v0.9.0 ｜ 2026-09-27 ｜ 适用于 Windows（Linux/macOS 同理）
+> 版本 v0.14.0 ｜ 2026-09-28 ｜ 适用于 Windows（Linux/macOS 同理）
 > ProtoForge 是一个 Wireshark Lua 解析器（dissector）生成器：声明式定义私有二进制协议，
 > 一键生成完整 Lua 解析器、一键部署进 Wireshark、内置测试台免抓包验证。
 
@@ -94,7 +94,7 @@ pip install -r requirements.txt
 
 ```bash
 python -m protoforge selftest
-# 期望输出：[PASS] selftest OK（ProtoForge v0.9.0，绑定 [('udp.port', 65500, 'selft')]）
+# 期望输出：[PASS] selftest OK（ProtoForge v0.14.0，绑定 [('udp.port', 65500, 'selft')]）
 ```
 
 跑全量测试（75 个用例，含真实 tshark E2E）：
@@ -535,4 +535,4 @@ v1 仍未支持（路线图）：
 
 ---
 
-*ProtoForge v0.9.0 · 本手册随源码交付于 `docs/USER_MANUAL.md` · 截图由 `tools/make_screens.py` 生成*
+*ProtoForge v0.14.0 · 本手册随源码交付于 `docs/USER_MANUAL.md` · 截图由 `tools/make_screens.py` 生成*

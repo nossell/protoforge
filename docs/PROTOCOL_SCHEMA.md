@@ -1,6 +1,6 @@
 # ProtoForge 协议定义 Schema 参考
 
-> 适用版本 v0.9.0。定义文件是 JSON（`.json`）或 CSV（平铺子集，见手册第 7 节）。
+> 适用版本 v0.14.0。定义文件是 JSON（`.json`）或 CSV（平铺子集，见手册第 7 节）。
 > 本文档是权威格式说明；示例见 `examples/smsp.json`。
 
 ## 顶层结构

@@ -1,6 +1,7 @@
 # ProtoForge 设计说明书（Design Spec）
 
-> 版本 v0.9.0 ｜ 2026-09-27 ｜ 由 spike（一次性可行性原型，已归档）升级为完整产品
+> 版本 v0.14.0 ｜ 2026-09-28 ｜ 由 spike（一次性可行性原型，已归档）升级为完整产品
+> v0.10–v0.14 五轮迭代增补见 §4.3（原始 v1.0 范围见 §4.1，其中「Won't」项有两项已提前落地）
 > 背景：市场调研报告《Wireshark 解析器生成器-可行性与市场分析》（随项目归档）
 
 ## 1. 产品定位
@@ -74,6 +75,29 @@ JSON / CSV）描述私有二进制协议，一键生成完整、正确、带防�
 ### 4.2 Won't（明确不做，手册声明）
 AI 辅助生成、Kaitai .ksy 导入、变长元素数组（length_from）、heuristic 解绑、协议样例库、
 大版本升级管理。理由：YAGNI，v1 先验证核心价值闭环。
+（后续落地情况：`length_from` 与 heuristic **已在 v0.10/v0.14 落地**，见 §4.3；
+AI 辅助生成与 Kaitai 导入仍为路线图项。）
+
+### 4.3 v0.10–v0.14 增补（五轮迭代）
+
+1. **字节序**：协议级 `meta.byte_order`（big/little）+ 字段级覆盖；小端数值生成
+   `add_le` 与 `le_uint/le_int` 读取（与 Wireshark 惯用法一致）；位域不参与字节序
+2. **变长**：`length_from` 用于 string/bytes（按引用字段字节数）与 array
+   （区域字节数 ÷ 元素尺寸计数，**元素必须全定长**，否则校验拒绝）；越界自动钳制 + expert
+3. **校验和家族**：`crc16` 由单一 CCITT-FALSE 扩展为 ccitt_false / modbus（低字节在前）/
+   xmodem / sum8(uint8) / sum16(uint16)，类型强校验
+4. **终止符字符串**：`terminated_by`（如 0x00）扫描终止符，内容不含终止符，
+   未找到标注 `(unterminated)`；与 size/length_from 三选一
+5. **嵌套 switch 与 default**：case 内可嵌套 switch（须为末项）；`cases.default`
+   为兜底分支（此前只标注 unknown）
+6. **抓包输入**：pcapio 增加 pcapng（SHB 字节序自动识别、IDB linktype 校验、EPB 截断守卫）；
+   classic pcap 路径不变；CLI `verify --port` 支持逗号分隔多端口
+7. **多绑定**：bindings 数组表达同一协议同时绑定 udp+tcp（GUI 绑定表增删行实时生效）
+8. **启发式注册**：`meta.heuristic` = udp/tcp 时生成 `proto:register_heuristic`，
+   以首字段 const（数值/位域）快速判别，命中才接管报文
+9. **过短帧语义变更**：由「返回 0 交给 Data」改为「认领该帧 + expert 报错」——
+   真机上返回 0 会连同 expert 一起被丢弃（v0.14 审查实测确认）
+10. **测试**：新增真实 tshark 高级 E2E（逐特性验证）与审查修复回归；当前 163 例
 
 ## 5. 关键设计决策记录
 
@@ -101,6 +125,9 @@ AI 辅助生成、Kaitai .ksy 导入、变长元素数组（length_from）、heu
 | 集成 | test_cli.py | generate/verify/deploy/selftest 子命令（tmp 目录） |
 | E2E | test_e2e_tshark.py | tshark 存在则：生成→pcap→tshark -V 输出含关键字（CRC correct/incorrect、bitfield 行） |
 | GUI | test_gui_smoke.py | offscreen：加载示例、树节点数、生成按钮、测试台运行、属性面板联动 |
+| E2E | test_e2e_tshark_advanced.py | 真机 tshark 逐特性：小端/字段级大端覆盖、MODBUS 校验和、终止符与 (unterminated)、嵌套 switch 三级分支与 default、length_from 字符串/数组、启发式在未绑定端口接管 |
+| 回归 | test_r1…r5_*.py | 五轮迭代各自特性回归（字节序/变长、校验和/终止符、嵌套 switch/default、pcapng/多绑定、启发式/车载示例） |
+| 回归 | test_review_fixes_v014.py | 发布前独立审查发现逐条固化（崩溃/死循环/GUI 数据丢失/异常类型） |
 
 ## 7. 交付物清单
 
