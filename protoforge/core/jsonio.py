@@ -22,6 +22,8 @@ def _parse_field(d: dict) -> Field:
         count=d.get("count"),
         count_from=d.get("count_from"),
         crc16=d.get("crc16"),
+        byte_order=d.get("byte_order"),
+        length_from=d.get("length_from"),
     )
     if d.get("enum"):
         f.enum = {int(k, 0) if isinstance(k, str) else int(k): str(v) for k, v in d["enum"].items()}
@@ -56,6 +58,10 @@ def _field_to_dict(f: Field) -> dict:
         d["element"] = [_field_to_dict(x) for x in f.element]
     if f.crc16:
         d["crc16"] = f.crc16
+    if f.byte_order:
+        d["byte_order"] = f.byte_order
+    if f.length_from:
+        d["length_from"] = f.length_from
     return d
 
 
@@ -77,6 +83,7 @@ def load_protocol_dict(data: dict) -> Protocol:
         long_name=meta.get("long_name", ""),
         desc=meta.get("desc", ""),
         length_check=meta.get("length_check"),
+        byte_order=meta.get("byte_order", "big"),
     )
     if not p.long_name:
         p.long_name = p.name.upper()
@@ -88,6 +95,8 @@ def load_protocol_dict(data: dict) -> Protocol:
 
 def protocol_to_dict(p: Protocol) -> dict:
     meta = {"name": p.name, "long_name": p.long_name, "desc": p.desc}
+    if p.byte_order != "big":
+        meta["byte_order"] = p.byte_order
     if p.length_check:
         meta["length_check"] = p.length_check
     return {

@@ -76,6 +76,8 @@ class Generator:
                 self.captured.add(f.on)
             elif f.type == "array" and f.count_from:
                 self.captured.add(f.count_from)
+            if f.length_from:
+                self.captured.add(f.length_from)
         for f in walk(self.p.fields):
             if f.const is not None:
                 self.captured.add(f.name)
@@ -86,6 +88,11 @@ class Generator:
             if f.name == "seqNum" and f.type in ("uint8", "uint16", "uint24", "uint32"):
                 self.captured.add("seqNum")
                 break
+
+    def _bo(self, f: Field) -> str:
+        """字段有效字节序前缀：LE 返回 'le_'，BE 返回 ''。"""
+        bo = f.byte_order or self.p.byte_order
+        return "le_" if bo == "little" else ""
 
     def _split_frame(self):
         """顶层切分为 (固定头, 尾部)。切分点：首个 switch；无 switch 则末尾 crc 字段。"""
@@ -237,7 +244,8 @@ class Generator:
     def _emit_read(self, f: Field, size: int, signed: bool) -> str:
         if is_bitfield(f):
             return f"buffer(off, {f._bits // 8}):bitfield({f._bitoff}, {f.width})"
-        return f"buffer(off, {size}){':int()' if signed else ':uint()'}"
+        le = self._bo(f)
+        return f"buffer(off, {size}):{le}{'int()' if signed else 'uint()'}"
 
     def _emit_fields(self, fields: list, parent: str):
         for f in fields:
@@ -251,9 +259,11 @@ class Generator:
                     self.w(f"off = off + {nbytes}")
             elif f.type in PRIM_CTORS:
                 _, size, signed = PRIM_CTORS[f.type]
+                le = self._bo(f) == "le_"
+                add_fn = "add_le" if le else "add"
                 if nm in self.captured:
                     self.w(f"local v_{nm} = {self._emit_read(f, size, signed)}")
-                self.w(f"{parent}:add(pf_{nm}, buffer(off, {size}))")
+                self.w(f"{parent}:{add_fn}(pf_{nm}, buffer(off, {size}))")
                 if f.const is not None:
                     cv = int(f.const, 0)
                     self.w(f"if v_{nm} ~= {hex(cv)} then")
@@ -263,8 +273,20 @@ class Generator:
                     self.w("end")
                 self.w(f"off = off + {size}")
             elif f.type in ("string", "bytes"):
-                self.w(f"{parent}:add(pf_{nm}, buffer(off, {f.size}))")
-                self.w(f"off = off + {f.size}")
+                if f.length_from:
+                    n = f"n_{nm}"
+                    self.w(f"local {n} = v_{f.length_from}")
+                    self.w(f"if off + {n} > len then")
+                    self.i += 1
+                    self.w(f'{parent}:add_proto_expert_info(pe_len_bad, string.format("{nm} 长度 %d 超出剩余字节", {n}))')
+                    self.w(f"{n} = len - off")
+                    self.i -= 1
+                    self.w("end")
+                    self.w(f"{parent}:add(pf_{nm}, buffer(off, {n}))")
+                    self.w(f"off = off + {n}")
+                else:
+                    self.w(f"{parent}:add(pf_{nm}, buffer(off, {f.size}))")
+                    self.w(f"off = off + {f.size}")
             elif f.type == "switch":
                 self._emit_switch(f, parent)
             elif f.type == "array":
@@ -291,8 +313,21 @@ class Generator:
     def _emit_array(self, f: Field, parent: str):
         nm = f.name
         esize = static_size(f.element)
-        cnt = f"v_{f.count_from}" if f.count_from else str(f.count)
         label = _lua(f.label or "Element")
+        if f.length_from:
+            rgn = f"rgn_{nm}"
+            self.w(f"local {rgn} = v_{f.length_from}")
+            self.w(f"if off + {rgn} > len then")
+            self.i += 1
+            self.w(f'{parent}:add_proto_expert_info(pe_len_bad, string.format("{nm} 区域 %d 超出剩余字节", {rgn}))')
+            self.w(f"{rgn} = len - off")
+            self.i -= 1
+            self.w("end")
+            cnt = f"math.floor({rgn} / {esize})"
+        elif f.count_from:
+            cnt = f"v_{f.count_from}"
+        else:
+            cnt = str(f.count)
         self.w(f"for i = 1, {cnt} do")
         self.i += 1
         self.w(f'local st_{nm} = {parent}:add(buffer(off, {esize}), "{label} [" .. (i - 1) .. "]")')

@@ -37,6 +37,9 @@ class PropertyPanel(QWidget):
         self.const_edit = QLineEdit()
         self.const_edit.setPlaceholderText("如 0x5A5A（留空不校验）")
         self.crc_check = QCheckBox("CRC-16/CCITT-FALSE 校验字段（须为末尾 uint16）")
+        self.byte_order_combo = QComboBox()
+        self.byte_order_combo.addItems(["（协议默认）", "big", "little"])
+        self.length_from_combo = QComboBox()
         self.enum_edit = QPlainTextEdit()
         self.enum_edit.setPlaceholderText("每行一条：1=Telemetry")
         self.enum_edit.setFixedHeight(80)
@@ -52,8 +55,10 @@ class PropertyPanel(QWidget):
         form.addRow("显示名", self.label_edit)
         form.addRow("类型", self.type_combo)
         form.addRow("显示进制", self.display_combo)
+        form.addRow("字节序", self.byte_order_combo)
         form.addRow("位宽 (bit)", self.width_spin)
         form.addRow("长度 (字节)", self.size_spin)
+        form.addRow("长度来源字段", self.length_from_combo)
         form.addRow("常量校验", self.const_edit)
         form.addRow(self.crc_check)
         form.addRow("枚举表", self.enum_edit)
@@ -78,11 +83,13 @@ class PropertyPanel(QWidget):
         self.on_combo.currentIndexChanged.connect(self._apply)
         self.count_mode.currentIndexChanged.connect(self._apply)
         self.count_from_combo.currentIndexChanged.connect(self._apply)
+        self.byte_order_combo.currentIndexChanged.connect(self._apply)
+        self.length_from_combo.currentIndexChanged.connect(self._apply)
 
     def set_prior_names(self, names: list[str]):
-        """刷新 switch.on / count_from 的候选（当前字段之前声明的字段名）。"""
+        """刷新 switch.on / count_from / length_from 的候选（当前字段之前声明的字段名）。"""
         self._building = True
-        for combo, is_switch in ((self.on_combo, True), (self.count_from_combo, False)):
+        for combo in (self.on_combo, self.count_from_combo, self.length_from_combo):
             cur = combo.currentText()
             combo.clear()
             combo.addItems(names)
@@ -105,6 +112,8 @@ class PropertyPanel(QWidget):
         else:
             self.type_combo.setCurrentText(field.type)
         self.display_combo.setCurrentText(field.display)
+        self.byte_order_combo.setCurrentIndex(
+            {"little": 2, "big": 1}.get(field.byte_order, 0))
         self.width_spin.setValue(field.width or 1)
         self.size_spin.setValue(field.size or 1)
         self.const_edit.setText(field.const or "")
@@ -112,6 +121,8 @@ class PropertyPanel(QWidget):
         self.enum_edit.setPlainText(_enum_to_text(field.enum))
         if field.on:
             self.on_combo.setCurrentText(field.on)
+        if field.length_from:
+            self.length_from_combo.setCurrentText(field.length_from)
         if field.count_from:
             self.count_mode.setCurrentIndex(1)
             self.count_from_combo.setCurrentText(field.count_from)
@@ -135,8 +146,14 @@ class PropertyPanel(QWidget):
             if t not in ("uint",):
                 f.width = 0
         f.display = self.display_combo.currentText()
+        idx = self.byte_order_combo.currentIndex()
+        f.byte_order = [None, "big", "little"][idx] if idx > 0 else None
         if t in ("string", "bytes"):
-            f.size = self.size_spin.value()
+            lf = self.length_from_combo.currentText()
+            if lf:
+                f.length_from, f.size = lf, 0
+            else:
+                f.length_from, f.size = None, self.size_spin.value()
         f.const = self.const_edit.text().strip() or None
         f.crc16 = "ccitt_false" if self.crc_check.isChecked() else None
         try:

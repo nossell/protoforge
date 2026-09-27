@@ -1,6 +1,6 @@
 --[[
     SMSP - SmartMesh Sensor Protocol dissector
-    由 ProtoForge v0.9.0 生成于 2026-09-27
+    由 ProtoForge v0.10.0 生成于 2026-09-28
     目标：Wireshark 4.4+（Lua 5.3/5.4）
     授权：使用 Wireshark Lua 绑定的脚本须按 GPLv2+ 分发
     （官方 wiki「Beware the GPL」口径）；可自由使用与修改。

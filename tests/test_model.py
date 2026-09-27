@@ -71,7 +71,7 @@ def test_array_count_conflict():
         Field("n", type="uint8"),
         Field("arr", type="array", count=2, count_from="n", element=[Field("e", type="uint8")]),
     ])
-    assert any("二选一" in e for e in validate(p))
+    assert any("三选一" in e for e in validate(p))
 
 
 def test_array_count_from_missing():

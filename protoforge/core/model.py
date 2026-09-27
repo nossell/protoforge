@@ -14,6 +14,7 @@ NUMERIC_TYPES = set(PRIM_SIZES) | {"uint"}   # 可作为引用依据（switch.on
 VALID_TYPES = set(PRIM_SIZES) | {"uint", "string", "bytes", "switch", "array"}
 VALID_DISPLAYS = {"dec", "hex"}
 VALID_TABLES = {"udp.port", "tcp.port"}
+VALID_BYTE_ORDERS = {"big", "little"}
 NAME_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
 
@@ -37,6 +38,8 @@ class Field:
     count_from: Optional[str] = None                  # array：次数来源字段名
     element: Optional[list] = None                    # array：元素字段列表
     crc16: Optional[str] = None    # "ccitt_false"
+    byte_order: Optional[str] = None                  # 覆盖协议默认字节序（数值字段）
+    length_from: Optional[str] = None                 # string/bytes/array：区域长度来源字段名
 
 
 @dataclass
@@ -53,6 +56,7 @@ class Protocol:
     bindings: list = dc_field(default_factory=list)
     fields: list = dc_field(default_factory=list)
     length_check: Optional[dict] = None   # {"field": name, "region": "payload"}
+    byte_order: str = "big"               # 协议默认字节序：big | little
 
 
 def is_bitfield(f: Field) -> bool:
@@ -140,8 +144,14 @@ def static_size(fields: list) -> int:
     for f in fields:
         if is_bitfield(f):
             continue  # 打包组字节数在下方统一计入
-        if f.type in ("switch", "array"):
+        if f.type == "switch":
             raise ValidationError(f"静态布局中出现可变结构: {f.name}")
+        if f.type == "array":
+            if f.length_from:
+                continue  # 变长区域按最小 0 贡献计入
+            raise ValidationError(f"静态布局中出现可变结构: {f.name}")
+        if f.type in ("string", "bytes") and f.length_from:
+            continue  # 变长字段按最小 0 贡献计入
         s = field_size(f)
         if s is None:
             raise ValidationError(f"字段 {f.type} '{f.name}' 缺少定长 size")
@@ -163,8 +173,8 @@ def validate(p: Protocol) -> list:
             return
         if f.type == "uint" and not (1 <= f.width < 8):
             errors.append(f"{where}/{f.name}: bitfield 需 width 1-7")
-        if f.type in ("string", "bytes") and f.size < 1:
-            errors.append(f"{where}/{f.name}: {f.type} 需要定长 size >= 1")
+        if f.type in ("string", "bytes") and f.size < 1 and f.length_from is None:
+            errors.append(f"{where}/{f.name}: {f.type} 需要定长 size >= 1 或指定 length_from")
         if f.display not in VALID_DISPLAYS:
             errors.append(f"{where}/{f.name}: display 只能是 dec/hex")
         if f.enum is not None:
@@ -182,6 +192,17 @@ def validate(p: Protocol) -> list:
                     errors.append(f"{where}/{f.name}: const 仅支持数值/位域字段")
                 elif cv < 0:
                     errors.append(f"{where}/{f.name}: const 不能为负数（无符号字段）")
+        if f.byte_order is not None:
+            if f.byte_order not in VALID_BYTE_ORDERS:
+                errors.append(f"{where}/{f.name}: byte_order 只能是 big/little")
+            elif is_bitfield(f):
+                errors.append(f"{where}/{f.name}: byte_order 仅支持数值字段（位域不适用）")
+            elif f.type not in PRIM_SIZES:
+                errors.append(f"{where}/{f.name}: byte_order 仅支持数值字段（位域/字符串等不适用）")
+        if f.type in ("string", "bytes") and f.length_from is not None and f.size >= 1:
+            errors.append(f"{where}/{f.name}: size 与 length_from 只能二选一")
+        if f.type == "uint" and f.length_from is not None:
+            errors.append(f"{where}/{f.name}: length_from 不适用于位域")
 
     def check_list(fields: list, where: str, visible: dict, top_level: bool):
         """visible: 进入本列表时可见的字段名→Field（外层作用域继承）。
@@ -208,10 +229,11 @@ def validate(p: Protocol) -> list:
                         errors.append(f"{where}/{f.name}: case 键必须是整数")
                     check_list(case, f"{where}/{f.name}/case {key}", dict(visible), False)
             elif f.type == "array":
-                if f.count is None and f.count_from is None:
-                    errors.append(f"{where}/{f.name}: array 需要 count 或 count_from 之一")
-                elif f.count is not None and f.count_from is not None:
-                    errors.append(f"{where}/{f.name}: count 与 count_from 只能二选一")
+                sizing = sum(x is not None for x in (f.count, f.count_from, f.length_from))
+                if sizing == 0:
+                    errors.append(f"{where}/{f.name}: array 需要 count / count_from / length_from 之一")
+                elif sizing > 1:
+                    errors.append(f"{where}/{f.name}: count / count_from / length_from 只能三选一")
                 if f.count is not None:
                     if isinstance(f.count, bool) or not isinstance(f.count, int):
                         errors.append(f"{where}/{f.name}: count 必须是整数（当前 {f.count!r}）")
@@ -223,6 +245,12 @@ def validate(p: Protocol) -> list:
                         errors.append(f"{where}/{f.name}: count_from 字段 '{f.count_from}' 未在其之前声明（或在不可见作用域）")
                     elif not is_numeric(ref):
                         errors.append(f"{where}/{f.name}: count_from 字段 '{f.count_from}' 必须是数值/位域类型")
+                if f.length_from:
+                    ref = visible.get(f.length_from)
+                    if ref is None:
+                        errors.append(f"{where}/{f.name}: length_from 字段 '{f.length_from}' 未在其之前声明（或在不可见作用域）")
+                    elif not is_numeric(ref):
+                        errors.append(f"{where}/{f.name}: length_from 字段 '{f.length_from}' 必须是数值/位域类型")
                 if not f.element:
                     errors.append(f"{where}/{f.name}: array 缺少 element 字段列表")
                 else:
@@ -234,6 +262,12 @@ def validate(p: Protocol) -> list:
             else:
                 if f.crc16 and not top_level:
                     errors.append(f"{where}/{f.name}: crc16 字段只能位于顶层末尾")
+                if f.type in ("string", "bytes") and f.length_from:
+                    ref = visible.get(f.length_from)
+                    if ref is None:
+                        errors.append(f"{where}/{f.name}: length_from 字段 '{f.length_from}' 未在其之前声明（或在不可见作用域）")
+                    elif not is_numeric(ref):
+                        errors.append(f"{where}/{f.name}: length_from 字段 '{f.length_from}' 必须是数值/位域类型")
             visible[f.name] = f
 
     # ---- 顶层 ----
@@ -243,6 +277,8 @@ def validate(p: Protocol) -> list:
         errors.append(f"协议名 '{p.name}' 过短：Wireshark 要求过滤名至少 2 个字符")
     if not p.bindings:
         errors.append("缺少绑定（bindings）：至少一个 udp.port / tcp.port")
+    if p.byte_order not in VALID_BYTE_ORDERS:
+        errors.append(f"协议字节序 '{p.byte_order}' 不合法（big/little）")
     for b in p.bindings:
         if b.table not in VALID_TABLES:
             errors.append(f"绑定表 '{b.table}' 不受支持（仅 udp.port/tcp.port）")
@@ -256,8 +292,11 @@ def validate(p: Protocol) -> list:
     top_switches = [f for f in p.fields if f.type == "switch"]
     if len(top_switches) > 1:
         errors.append("顶层最多允许一个 switch（多分支请用同一 switch 的多个 case 表达）")
-    if any(f.type == "array" for f in p.fields):
-        errors.append("顶层不允许 array（请放入 switch case 内）")
+    top_arrays = [f for f in p.fields if f.type == "array"]
+    for f in top_arrays:
+        if not f.length_from:
+            errors.append(f"顶层 array '{f.name}' 仅支持 length_from 计数模式"
+                          f"（count/count_from 数组请放入 switch case 内）")
     if top_switches:
         after = p.fields[p.fields.index(top_switches[0]) + 1:]
         for f in after:

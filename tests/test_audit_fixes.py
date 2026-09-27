@@ -162,8 +162,14 @@ def test_second_top_switch_rejected():
 
 
 def test_top_level_array_rejected():
+    """R1 起：顶层 array 仅允许 length_from 模式；count/count_from 模式仍拒绝。"""
     p = make_proto([Field("arr", type="array", count=2, element=[Field("e", type="uint8")])])
-    assert any("顶层不允许 array" in e for e in validate(p))
+    assert any("仅支持 length_from" in e for e in validate(p))
+    p2 = make_proto([
+        Field("n", type="uint8"),
+        Field("arr", type="array", count_from="n", element=[Field("e", type="uint8")]),
+    ])
+    assert any("仅支持 length_from" in e for e in validate(p2))
 
 
 def test_field_after_switch_rejected():

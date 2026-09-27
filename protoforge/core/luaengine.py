@@ -73,6 +73,17 @@ class _TvbRange:
         shift = self.ln * 8 - bitoff - bitcount
         return (v >> shift) & ((1 << bitcount) - 1)
 
+    def le_uint(self):
+        v = 0
+        for i in range(self.ln - 1, -1, -1):
+            v = (v << 8) | self.data[self.off + i]
+        return v
+
+    def le_int(self):
+        v = self.le_uint()
+        bits = self.ln * 8
+        return v - (1 << bits) if v >= (1 << (bits - 1)) else v
+
     def bytes(self):
         return _ByteArray(self.data[self.off:self.off + self.ln])
 
@@ -109,7 +120,7 @@ class _ProtoField:
         self.abbr, self.label, self.kind = abbr, label, kind
         self.size, self.base, self.valuestring, self.mask = size, base, valuestring, mask
 
-    def _fmt(self, rng, override=None):
+    def _fmt(self, rng, override=None, le=False):
         if override is not None:
             return str(override)
         if self.kind == "none":
@@ -118,15 +129,16 @@ class _ProtoField:
             return '"%s"' % rng.string()
         if self.kind == "bytes":
             return bytes(rng.data[rng.off:rng.off + rng.ln]).hex()
-        v = rng.uint()
+        v = rng.le_uint() if le else rng.uint()
         if self.mask:
-            v = (v & self.mask) >> _TvbRange._mask_shift(rng, self.mask)
+            shift = _TvbRange._mask_shift(rng, self.mask)
+            v = (v & self.mask) >> shift
         if self.kind == "bool":
             return "True" if v & 1 else "False"
         if self.kind.startswith("int"):
-            v = rng.int()
+            v = rng.le_int() if le else rng.int()
             if self.mask:
-                v = (v & self.mask) >> _TvbRange._mask_shift(rng, self.mask)
+                v = (v & self.mask) >> shift
         s = ("0x%0*X" % (rng.ln * 2, v)) if self.base == "HEX" else str(v)
         if self.valuestring and v in self.valuestring:
             # 与真实 Wireshark 4.6 行为对齐：枚举显示为 "Name (value)"
@@ -201,7 +213,7 @@ class _TreeItem:
         self.off, self.ln, self.expert, self.expert_tag = off, ln, expert, expert_tag
         self.children = []
 
-    def add(self, a, b=None, c=None):
+    def add(self, a, b=None, c=None, le=False):
         if isinstance(a, _Proto):
             child = _TreeItem(a.long_name, off=getattr(b, "off", 0), ln=getattr(b, "ln", 0))
         elif isinstance(a, _TvbRange):
@@ -210,9 +222,12 @@ class _TreeItem:
             override = None
             if c is not None and not isinstance(c, (_TvbRange, _Tvb)):
                 override = c
-            child = _TreeItem(a.label, a._fmt(b, override), off=b.off, ln=b.ln)
+            child = _TreeItem(a.label, a._fmt(b, override, le), off=b.off, ln=b.ln)
         self.children.append(child)
         return child
+
+    def add_le(self, a, b=None, c=None):
+        return self.add(a, b, c, le=True)
 
     def add_proto_expert_info(self, pe, text=None):
         self.children.append(_TreeItem(
