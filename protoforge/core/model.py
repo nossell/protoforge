@@ -64,6 +64,7 @@ class Protocol:
     fields: list = dc_field(default_factory=list)
     length_check: Optional[dict] = None   # {"field": name, "region": "payload"}
     byte_order: str = "big"               # 协议默认字节序：big | little
+    heuristic: Optional[str] = None       # 启发式注册表："udp" | "tcp"（启用时首字段必须带 const）
 
 
 def is_bitfield(f: Field) -> bool:
@@ -302,6 +303,17 @@ def validate(p: Protocol) -> list:
         errors.append("缺少绑定（bindings）：至少一个 udp.port / tcp.port")
     if p.byte_order not in VALID_BYTE_ORDERS:
         errors.append(f"协议字节序 '{p.byte_order}' 不合法（big/little）")
+    if p.heuristic:
+        if p.heuristic not in ("udp", "tcp"):
+            errors.append(f"heuristic 只能是 udp/tcp（当前 '{p.heuristic}'）")
+        else:
+            first = p.fields[0] if p.fields else None
+            if first is None or first.const is None or not is_numeric(first):
+                errors.append("启用 heuristic 时，第一个字段必须是带 const 的数值字段"
+                              "（作为启发式快速判别依据）")
+            table = "udp.port" if p.heuristic == "udp" else "tcp.port"
+            if not any(b.table == table for b in p.bindings):
+                errors.append(f"heuristic('{p.heuristic}') 要求同时存在对应的 {table} 端口绑定")
     for b in p.bindings:
         if b.table not in VALID_TABLES:
             errors.append(f"绑定表 '{b.table}' 不受支持（仅 udp.port/tcp.port）")

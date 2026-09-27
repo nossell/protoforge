@@ -1,0 +1,41 @@
+{
+  "meta": {
+    "name": "sadp",
+    "long_name": "Simple Automotive Diagnostic Protocol",
+    "desc": "教学用车载诊断风格示例协议（虚构，非 UDS/SOME/IP 本体）",
+    "byte_order": "big",
+    "length_check": { "field": "payloadLen", "region": "payload" }
+  },
+  "bindings": [
+    { "table": "udp.port", "ports": [13400] }
+  ],
+  "fields": [
+    { "name": "magic",     "label": "Magic",        "type": "uint16", "display": "hex", "const": "0x0D5A" },
+    { "name": "version",   "label": "Version",      "type": "uint", "width": 4 },
+    { "name": "msgType",   "label": "Message Type", "type": "uint", "width": 4,
+      "enum": { "1": "Request", "2": "Response", "3": "ErrorResponse" } },
+    { "name": "seq",       "label": "Sequence",     "type": "uint8" },
+    { "name": "sid",       "label": "Service ID",   "type": "uint8",
+      "enum": { "16": "DiagSession", "34": "ReadDID", "62": "TesterPresent" } },
+    { "name": "payloadLen","label": "Payload Length", "type": "uint16" },
+    { "name": "payload",   "label": "Payload",       "type": "switch", "on": "msgType",
+      "cases": {
+        "1": [
+          { "name": "didCount", "label": "DID Count", "type": "uint8" },
+          { "name": "dids", "label": "DID", "type": "array", "count_from": "didCount",
+            "element": [ { "name": "did", "label": "DID", "type": "uint16", "display": "hex" } ] }
+        ],
+        "2": [
+          { "name": "respSid", "label": "Response SID", "type": "uint8",
+            "enum": { "80": "Session+", "98": "ReadDID+", "126": "TesterPresent+" } },
+          { "name": "asciiData", "label": "ASCII Data", "type": "string", "terminated_by": 0 }
+        ],
+        "default": [
+          { "name": "errCode", "label": "Error Code", "type": "uint8",
+            "enum": { "17": "GeneralReject", "49": "BusyRepeatRequest" } }
+        ]
+      }
+    },
+    { "name": "crc16", "label": "CRC-16/MODBUS", "type": "uint16", "display": "hex", "crc16": "modbus" }
+  ]
+}

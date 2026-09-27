@@ -24,12 +24,15 @@ run_tests.bat                   # 全量测试（含真实 tshark E2E）
 
 ## 功能
 
-- **类型系统**：uint8-32 / int8-32 / 定长 string / bytes / 连续位域自动打包（MSB 分配）/ 枚举 / hex·dec 显示
-- **结构**：switch 条件分支、变长数组（count_from）、定长数组（count）、任意嵌套
-- **校验输出**：CRC-16/CCITT-FALSE（expert 报错）、幻数检查、payloadLen 语义检查、过短包/尾随字节防御
-- **测试台**：hex / pcap 输入 → 内置 lupa 引擎**真实执行生成的 Lua** → 解析树 + 字节高亮联动
-- **部署**：跨平台插件目录发现、安装/卸载、tshark 版本检测
-- **CLI**：`generate / verify / deploy / selftest`（CI 友好，退出码规范）
+- **类型系统**：uint8-32 / int8-32 / 定长与变长 string / bytes / 连续位域自动打包（MSB 分配）/ 枚举 / hex·dec 显示
+- **字节序**：协议级默认 + 字段级覆盖（大端 / 小端，小端生成 `add_le`）
+- **变长能力**：`length_from` 变长 string/bytes/数组（带越界钳制与告警）；终止符字符串（如 0x00 结尾）
+- **结构**：switch 条件分支（含 default 兜底、嵌套 switch）、定长/按字段计数/按字节长度数组
+- **校验和**：CRC-16/CCITT-FALSE、MODBUS、XMODEM、SUM8、SUM16，自动计算并与 Wireshark Expert Info 联动
+- **防御检查**：幻数检查、payloadLen 语义检查、过短包/尾随字节防御
+- **测试台**：hex / pcap / pcapng 输入 → 内置 lupa 引擎**真实执行生成的 Lua** → 解析树 + 字节高亮联动
+- **部署**：跨平台插件目录发现、安装/卸载、tshark 版本检测、UDP/TCP 启发式注册
+- **CLI**：`generate / verify / deploy / selftest`（CI 友好，退出码规范，多端口提取）
 
 ## 目录
 
@@ -53,8 +56,8 @@ tools/make_screens.py  手册截图生成
 
 ## 状态
 
-v0.9.0（2026-09-27）——功能完整的第一个版本。路线图（Kaitai 导入、length_from 变长元素、
-AI 辅助等）见手册第 13 节。
+v0.14.0（2026-09-28）——历经 5 轮功能迭代：字节序、变长字段、校验和家族、终止符字符串、
+嵌套 switch/default、pcapng、多绑定、启发式注册。路线图见手册第 13 节。
 
 ## 商业与支持
 

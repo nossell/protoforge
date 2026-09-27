@@ -171,6 +171,11 @@ _ProtoField.none = staticmethod(_pf_none)
 class _Proto:
     def __init__(self, abbr, long_name):
         self.abbr, self.long_name = abbr, long_name
+        self.heuristics: list[tuple[str, object]] = []
+
+    def register_heuristic(self, table, fn):
+        self.heuristics.append((table, fn))
+        return fn
 
 
 class _ProtoExpert:

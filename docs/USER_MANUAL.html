@@ -720,7 +720,18 @@ v1 的 bytes 是定长；变长元素（length_from）在路线图中（第 13 �
 </ul>
 <hr />
 <h2 id="13-路线图与已知限制">13. 路线图与已知限制</h2>
-<p>v1（本版本）明确不做：</p>
+<p>v0.10–v0.14 已新增（此前为限制项）：</p>
+<ul>
+<li><strong>小端字节序</strong>：协议级默认 + 字段级覆盖（<code>meta.byte_order</code> / 字段 <code>byte_order</code>）</li>
+<li><strong>变长字段/数组</strong>：string/bytes/数组支持 <code>length_from</code>（按字节区域长度，越界自动钳制并告警）</li>
+<li><strong>终止符字符串</strong>：string 支持 <code>terminated_by</code>（如 0x00 结尾，内容显示不含终止符）</li>
+<li><strong>校验和家族</strong>：CRC-16/CCITT-FALSE 之外新增 MODBUS（低字节在前）、XMODEM、SUM8、SUM16</li>
+<li><strong>嵌套 switch 与 default 分支</strong>：case 内可嵌套 switch（须为末项）；未命中走 default 分支</li>
+<li><strong>pcapng 读取</strong>：测试台与 CLI 均支持 pcapng（自动识别字节序）</li>
+<li><strong>多绑定</strong>：同一协议同时绑定 udp+tcp 端口（JSON bindings 数组 / GUI 绑定表 / CLI 多端口）</li>
+<li><strong>启发式注册</strong>：<code>meta.heuristic</code> = udp/tcp 时生成启发式解析器（按首字段 const 快速判别）</li>
+</ul>
+<p>v1 仍未支持（路线图）：</p>
 <table>
 <thead>
 <tr>
@@ -731,19 +742,19 @@ v1 的 bytes 是定长；变长元素（length_from）在路线图中（第 13 �
 </thead>
 <tbody>
 <tr>
-<td>变长元素数组（length_from）</td>
+<td>length_from 变长元素数组</td>
 <td>路线图</td>
-<td>元素尺寸依赖长度字段的场景</td>
+<td>元素尺寸依赖长度字段的场景（当前 length_from 按元素大小整除计数）</td>
 </tr>
 <tr>
-<td>switch 嵌套 switch</td>
+<td>switch 嵌套于 array 元素</td>
 <td>路线图</td>
-<td>大多数协议可用平级多字段表达</td>
+<td>元素内仅允许定长字段</td>
 </tr>
 <tr>
-<td>pcapng 读取</td>
+<td>pcapng 写入</td>
 <td>路线图</td>
-<td>测试台目前仅 classic pcap（可用 Wireshark 另存为 pcap）</td>
+<td>测试台只读</td>
 </tr>
 <tr>
 <td>Kaitai .ksy 导入</td>
@@ -756,17 +767,17 @@ v1 的 bytes 是定长；变长元素（length_from）在路线图中（第 13 �
 <td>"spec → Lua" 的 prompt 链路已可行，产品化待定</td>
 </tr>
 <tr>
-<td>多绑定（同时 udp+tcp）</td>
-<td>v1 单绑定</td>
-<td>需要时改 JSON 手加 bindings 数组即可（生成器支持）</td>
+<td>大端位域之外的位序自定义</td>
+<td>路线图</td>
+<td>位域按 MSB 分配</td>
 </tr>
 </tbody>
 </table>
 <p>已知限制：</p>
 <ul>
-<li>解析按大端（网络序）；小端协议 v1 需人工调整字段拆分</li>
-<li>TCP 流重组、heuristic 解绑不在 v1 范围</li>
-<li>GUI 的绑定编辑仅第一个绑定（多绑定走 JSON）</li>
+<li>TCP 流重组、heuristic 之外的动态解绑不在范围内</li>
+<li>GUI 的启发式开关目前固定注册到 UDP；TCP 启发式请用 JSON 的 <code>meta.heuristic</code></li>
+<li>详见 <code>docs/PROTOCOL_SCHEMA.md</code> 的校验规则清单与字段说明</li>
 </ul>
 <hr />
 <p><em>ProtoForge v0.9.0 · 本手册随源码交付于 <code>docs/USER_MANUAL.md</code> · 截图由 <code>tools/make_screens.py</code> 生成</em></p>

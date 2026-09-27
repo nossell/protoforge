@@ -504,22 +504,33 @@ v1 的 bytes 是定长；变长元素（length_from）在路线图中（第 13 �
 
 ## 13. 路线图与已知限制
 
-v1（本版本）明确不做：
+v0.10–v0.14 已新增（此前为限制项）：
+
+- **小端字节序**：协议级默认 + 字段级覆盖（`meta.byte_order` / 字段 `byte_order`）
+- **变长字段/数组**：string/bytes/数组支持 `length_from`（按字节区域长度，越界自动钳制并告警）
+- **终止符字符串**：string 支持 `terminated_by`（如 0x00 结尾，内容显示不含终止符）
+- **校验和家族**：CRC-16/CCITT-FALSE 之外新增 MODBUS（低字节在前）、XMODEM、SUM8、SUM16
+- **嵌套 switch 与 default 分支**：case 内可嵌套 switch（须为末项）；未命中走 default 分支
+- **pcapng 读取**：测试台与 CLI 均支持 pcapng（自动识别字节序）
+- **多绑定**：同一协议同时绑定 udp+tcp 端口（JSON bindings 数组 / GUI 绑定表 / CLI 多端口）
+- **启发式注册**：`meta.heuristic` = udp/tcp 时生成启发式解析器（按首字段 const 快速判别）
+
+v1 仍未支持（路线图）：
 
 | 特性 | 状态 | 说明 |
 |---|---|---|
-| 变长元素数组（length_from） | 路线图 | 元素尺寸依赖长度字段的场景 |
-| switch 嵌套 switch | 路线图 | 大多数协议可用平级多字段表达 |
-| pcapng 读取 | 路线图 | 测试台目前仅 classic pcap（可用 Wireshark 另存为 pcap） |
+| length_from 变长元素数组 | 路线图 | 元素尺寸依赖长度字段的场景（当前 length_from 按元素大小整除计数） |
+| switch 嵌套于 array 元素 | 路线图 | 元素内仅允许定长字段 |
+| pcapng 写入 | 路线图 | 测试台只读 |
 | Kaitai .ksy 导入 | 路线图 | 借力其协议描述生态 |
 | AI 辅助生成 | 路线图 | "spec → Lua" 的 prompt 链路已可行，产品化待定 |
-| 多绑定（同时 udp+tcp） | v1 单绑定 | 需要时改 JSON 手加 bindings 数组即可（生成器支持） |
+| 大端位域之外的位序自定义 | 路线图 | 位域按 MSB 分配 |
 
 已知限制：
 
-- 解析按大端（网络序）；小端协议 v1 需人工调整字段拆分
-- TCP 流重组、heuristic 解绑不在 v1 范围
-- GUI 的绑定编辑仅第一个绑定（多绑定走 JSON）
+- TCP 流重组、heuristic 之外的动态解绑不在范围内
+- GUI 的启发式开关目前固定注册到 UDP；TCP 启发式请用 JSON 的 `meta.heuristic`
+- 详见 `docs/PROTOCOL_SCHEMA.md` 的校验规则清单与字段说明
 
 ---
 

@@ -498,3 +498,28 @@ class Generator:
                 self.w(f"{var}:add({port}, proto)")
         if self.p.bindings:
             self.w()
+        if self.p.heuristic:
+            self._emit_heuristic()
+
+    def _emit_heuristic(self):
+        """启发式注册：以第一个字段（数值+const）做快速判别，命中才接管。"""
+        first = self.p.fields[0]
+        ctor, size, signed = PRIM_CTORS[first.type]
+        le = self._bo(first) == "le_"
+        cv = int(first.const, 0)
+        if is_bitfield(first):
+            probe = f"buffer(0, {first._bits // 8}):bitfield({first._bitoff}, {first.width})"
+        else:
+            probe = f"buffer(0, {size}):{'le_' if le else ''}{'int()' if signed else 'uint()'}"
+        self.w("-- 启发式注册：按首字段常量快速判别，命中才接管该报文")
+        self.w("local function proto_heur(buffer, pinfo, tree)")
+        self.i += 1
+        self.w("local len = buffer:len()")
+        self.w(f"if len < {size} then return false end")
+        self.w(f"if {probe} ~= {hex(cv)} then return false end")
+        self.w("proto.dissector(buffer, pinfo, tree)")
+        self.w("return true")
+        self.i -= 1
+        self.w("end")
+        self.w(f'proto:register_heuristic("{self.p.heuristic}", proto_heur)')
+        self.w()

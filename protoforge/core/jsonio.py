@@ -93,6 +93,7 @@ def load_protocol_dict(data: dict) -> Protocol:
         desc=meta.get("desc", ""),
         length_check=meta.get("length_check"),
         byte_order=meta.get("byte_order", "big"),
+        heuristic=meta.get("heuristic"),
     )
     if not p.long_name:
         p.long_name = p.name.upper()
@@ -106,6 +107,8 @@ def protocol_to_dict(p: Protocol) -> dict:
     meta = {"name": p.name, "long_name": p.long_name, "desc": p.desc}
     if p.byte_order != "big":
         meta["byte_order"] = p.byte_order
+    if p.heuristic:
+        meta["heuristic"] = p.heuristic
     if p.length_check:
         meta["length_check"] = p.length_check
     return {

@@ -7,9 +7,9 @@ import os
 from PySide6.QtCore import Qt, QUrl
 from PySide6.QtGui import QAction, QDesktopServices
 from PySide6.QtWidgets import (
-    QComboBox, QFileDialog, QHBoxLayout, QLabel, QLineEdit, QMainWindow,
-    QMessageBox, QPlainTextEdit, QPushButton, QSplitter, QTabWidget,
-    QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget,
+    QCheckBox, QComboBox, QFileDialog, QHBoxLayout, QLabel, QLineEdit,
+    QMainWindow, QMessageBox, QPlainTextEdit, QPushButton, QSplitter,
+    QTabWidget, QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget,
 )
 
 from .. import __version__
@@ -41,6 +41,7 @@ class MainWindow(QMainWindow):
         self._loading_bindings = False
         self.name_edit = QLineEdit(self.protocol.name)
         self.long_edit = QLineEdit(self.protocol.long_name)
+        self.heur_check = QCheckBox("启发式注册（首字段须带 const）")
         self.bind_table = QTableWidget(0, 2)
         self.bind_table.setHorizontalHeaderLabels(["绑定表", "端口（逗号分隔）"])
         self.bind_table.setMaximumHeight(96)
@@ -51,11 +52,11 @@ class MainWindow(QMainWindow):
         self.bind_table.itemChanged.connect(self._bindings_from_table)
         meta = QVBoxLayout()
         row1 = QVBoxLayout()
-        for lbl, w in (("协议名（Lua 前缀）", self.name_edit), ("协议全名", self.long_edit)):
-            box = QVBoxLayout()
-            box.addWidget(QLabel(lbl))
-            box.addWidget(w)
-            row1.addLayout(box)
+        row1.addWidget(QLabel("协议名（Lua 前缀）"))
+        row1.addWidget(self.name_edit)
+        row1.addWidget(QLabel("协议全名"))
+        row1.addWidget(self.long_edit)
+        row1.addWidget(self.heur_check)
         row2 = QVBoxLayout()
         row2.addWidget(QLabel("端口绑定（可多条：udp/tcp 同时监听）"))
         btns = QHBoxLayout()
@@ -78,6 +79,7 @@ class MainWindow(QMainWindow):
 
         for w in (self.name_edit, self.long_edit):
             w.editingFinished.connect(self._meta_changed)
+        self.heur_check.toggled.connect(self._meta_changed)
 
         # ---- 中部 ----
         self.editor = FieldEditor()
@@ -213,6 +215,7 @@ class MainWindow(QMainWindow):
         p = self.protocol
         p.name = self.name_edit.text().strip() or p.name
         p.long_name = self.long_edit.text().strip() or p.long_name
+        p.heuristic = "udp" if self.heur_check.isChecked() else None
         self._refresh()
 
     def _on_field_selected(self, field):
@@ -261,8 +264,10 @@ class MainWindow(QMainWindow):
         self._reload_all()
 
     def _reload_all(self):
+        self._loading_bindings = False
         self.name_edit.setText(self.protocol.name)
         self.long_edit.setText(self.protocol.long_name)
+        self.heur_check.setChecked(self.protocol.heuristic == "udp")
         self._populate_bindings()
         self.editor.bind(self.protocol)
         self._refresh()
