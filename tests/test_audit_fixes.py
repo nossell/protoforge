@@ -161,15 +161,28 @@ def test_second_top_switch_rejected():
     assert any("最多允许一个 switch" in e for e in validate(p))
 
 
-def test_top_level_array_rejected():
-    """R1 起：顶层 array 仅允许 length_from 模式；count/count_from 模式仍拒绝。"""
+def test_top_level_boundary_array_rules():
+    """v1.1 起：顶层 count/count_from 数组作为运行时边界合法（裸 TLV 链），
+    但边界之后仅允许 crc16 收尾。"""
+    from protoforge.core.model import is_top_boundary
     p = make_proto([Field("arr", type="array", count=2, element=[Field("e", type="uint8")])])
-    assert any("仅支持 length_from" in e for e in validate(p))
+    assert validate(p) == []                      # 边界数组本身合法
+    assert is_top_boundary(p.fields[0])
+    # 边界后带非 crc 字段 → 拒绝
     p2 = make_proto([
         Field("n", type="uint8"),
         Field("arr", type="array", count_from="n", element=[Field("e", type="uint8")]),
+        Field("tail", type="uint8"),
     ])
-    assert any("仅支持 length_from" in e for e in validate(p2))
+    assert any("仅允许 crc16 收尾" in e for e in validate(p2))
+    # 边界后 crc16 收尾 → 合法
+    p3 = make_proto([
+        Field("n", type="uint8"),
+        Field("arr", type="array", count_from="n",
+              element=[Field("e", type="uint16")]),
+        Field("ck", type="uint16", crc16="sum16"),
+    ])
+    assert validate(p3) == []
 
 
 def test_field_after_switch_rejected():

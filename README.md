@@ -31,7 +31,12 @@ run_tests.bat                   # 全量测试（含真实 tshark E2E）
 - **类型系统**：uint8-32 / int8-32 / 定长与变长 string / bytes / 连续位域自动打包（MSB 分配）/ 枚举 / hex·dec 显示
 - **字节序**：协议级默认 + 字段级覆盖（大端 / 小端，小端生成 `add_le`）
 - **变长能力**：`length_from` 变长 string/bytes/数组（带越界钳制与告警）；终止符字符串（如 0x00 结尾）
-- **结构**：switch 条件分支（含 default 兜底、嵌套 switch）、定长/按字段计数/按字节长度数组
+- **结构**：switch 条件分支（含 default 兜底、嵌套 switch）、定长/按字段计数/按字节长度数组；
+  **TLV 变长元素数组**（schema v1.1）：元素内可用变长字段与 switch——真实协议最常见的
+  `[type, len, value]` 形态，顶层裸 TLV 链直接表达
+- **TCP 解段**：`meta.desegment` 帧不完整时请求 Wireshark 自动重组（跨分段 PDU 正确解析）；
+  测试台对 TCP 协议按流重组提取
+- **复现导出**：`verify --export` 把测试帧写成 pcap/pcapng，直接附 issue
 - **校验和**：CRC-16/CCITT-FALSE、MODBUS、XMODEM、SUM8、SUM16，自动计算并与 Wireshark Expert Info 联动
 - **防御检查**：幻数检查、payloadLen 语义检查、过短包/尾随字节防御
 - **测试台**：hex / pcap / pcapng 输入 → 内置 lupa 引擎**真实执行生成的 Lua** → 解析树 + 字节高亮联动
@@ -45,8 +50,8 @@ protoforge/            Python 包
   core/                纯逻辑层（model/generator/jsonio/csvimport/luaengine/pcapio/deploy/aigen）
   app/                 PySide6 GUI
   cli.py               命令行入口
-tests/                 180 用例：单元 / 集成 / GUI offscreen / 真实 tshark E2E
-examples/              SMSP 与车载 SADP 示例（json/csv/pcap/构造脚本）
+tests/                 190+ 用例：单元 / 集成 / GUI offscreen / 真实 tshark E2E
+examples/              SMSP、车载 SADP、TLV 示例（json/csv/pcap/构造脚本）
 docs/                  DESIGN.md / PLAN.md / USER_MANUAL.md / PROTOCOL_SCHEMA.md / screenshots/
 tools/make_screens.py  手册截图生成
 ```
@@ -60,9 +65,9 @@ tools/make_screens.py  手册截图生成
 
 ## 状态
 
-v0.15.0（2026-09-29）——新增 **AI 辅助生成**（描述→定义 JSON，自修复校验循环）。此前五轮迭代：
-字节序、变长字段、校验和家族、终止符字符串、嵌套 switch/default、pcapng、多绑定、启发式注册。
-路线图见手册第 14 节。
+v0.16.0（2026-09-29）——**TLV 变长元素数组（schema v1.1）+ TCP 解段 + 抓包导出**。
+此前：AI 辅助生成（v0.15）、五轮迭代（字节序/变长/校验和家族/终止符/嵌套 switch/pcapng/
+多绑定/启发式）。路线图见手册第 14 节。
 
 ## 商业与支持
 

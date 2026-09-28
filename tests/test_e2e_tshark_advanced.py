@@ -127,6 +127,15 @@ def _write_pcap(path, frames):
             fh.write(pkt)
 
 
+def _write_pcap_raw(path, packets):
+    """已封装完整的以太网帧直接写入 pcap（TCP 测试用，不再包 UDP）。"""
+    with open(path, "wb") as fh:
+        fh.write(struct.pack("<IHHiIII", 0xA1B2C3D4, 2, 4, 0, 0, 65535, 1))
+        for i, pkt in enumerate(packets):
+            fh.write(struct.pack("<IIII", 1770000000 + i, 0, len(pkt), len(pkt)))
+            fh.write(pkt)
+
+
 def _gen(tmp_path, spec, fname):
     from protoforge.core.generator import generate_lua
     from protoforge.core.jsonio import load_protocol_dict
@@ -262,3 +271,127 @@ def test_heuristic_takes_over_unbound_port(heur):
     assert "Val: 7" in out
     # 不命中的包不应被接管（tshark 保持 Data），Val: 7 只应出现一次
     assert out.count("Val: 7") == 1
+
+
+# ---------------- v0.16：TLV 变长元素数组（真机） ----------------
+TLV = {
+    "meta": {"name": "pftlv9", "long_name": "ProtoForge TLV E2E Probe"},
+    "bindings": [{"table": "udp.port", "ports": [5595]}],
+    "fields": [
+        {"name": "magic", "label": "Magic", "type": "uint16", "display": "hex",
+         "const": "0x5453"},
+        {"name": "ncnt", "label": "TLV Count", "type": "uint8"},
+        {"name": "tlvs", "label": "TLV", "type": "array", "count_from": "ncnt",
+         "element": [
+             {"name": "ttype", "label": "Type", "type": "uint8",
+              "enum": {"1": "Val", "2": "Note"}},
+             {"name": "tlen", "label": "Length", "type": "uint8"},
+             {"name": "tval", "label": "Value", "type": "switch", "on": "ttype",
+              "cases": {
+                  "1": [{"name": "num", "label": "Num", "type": "uint32"}],
+                  "2": [{"name": "txt", "label": "Txt", "type": "string",
+                         "length_from": "tlen"}],
+                  "default": [{"name": "raw", "label": "Raw", "type": "bytes",
+                               "length_from": "tlen"}]}}]},
+    ],
+}
+
+
+@pytest.fixture(scope="module")
+def tlv(tmp_path_factory):
+    tmp = tmp_path_factory.mktemp("pf_tlv")
+    lua = _gen(tmp, TLV, "tlv.lua")
+    frames = [
+        # 2 个 TLV：Val(u32=0x0000FACE=64206) + Note("hi!")
+        (struct.pack(">HB", 0x5453, 2) + b"\x01\x04\x00\x00\xfa\xce"
+         + b"\x02\x03hi!", 41000, 5595),
+        # default 分支：type=7 raw 2 字节
+        (struct.pack(">HB", 0x5453, 1) + b"\x07\x02\xaa\xbb", 41001, 5595),
+    ]
+    pcap = tmp / "tlv.pcap"
+    _write_pcap(pcap, [(f, sp, dp) for f, sp, dp in frames])
+    return _run(lua, pcap)
+
+
+def test_tlv_elements_dissect_in_real_tshark(tlv):
+    out = tlv.stdout
+    assert "Lua Error" not in out
+    assert "ProtoForge TLV E2E Probe" in out
+    assert "TLV [0]" in out and "TLV [1]" in out
+    assert "Val (1)" in out and "Note (2)" in out   # 元素内枚举
+    assert "Num: 64206" in out                      # 0x0000FACE
+    assert "hi!" in out                             # length_from 字符串
+    assert "Raw" in out and "aabb" in out.lower()   # 元素内 default 分支（真机 bytes 无冒号）
+
+
+# ---------------- v0.16：TCP 解段（真机分片段重组） ----------------
+def _tcp_checksum(seg: bytes, src: str, dst: str) -> int:
+    pseudo = bytes(int(x) for x in src.split(".")) + bytes(int(x) for x in dst.split(".")) \
+        + struct.pack(">BBH", 0, 6, len(seg))
+    blob = pseudo + seg
+    if len(blob) % 2:
+        blob += b"\x00"
+    s = 0
+    for i in range(0, len(blob), 2):
+        s += (blob[i] << 8) | blob[i + 1]
+    while s >> 16:
+        s = (s & 0xFFFF) + (s >> 16)
+    return (~s) & 0xFFFF
+
+
+def _tcp_packet(payload: bytes, seq: int, sport: int, dport: int,
+                src="10.9.9.1", dst="10.9.9.2") -> bytes:
+    tcp = struct.pack(">HHIIBBHHH", sport, dport, seq, 1, 0x50, 0x18, 8192, 0, 0) + payload
+    ck = _tcp_checksum(tcp, src, dst)
+    tcp = tcp[:16] + struct.pack(">H", ck) + tcp[18:]
+    ip = struct.pack(">BBHHHBBH", 0x45, 0, 20 + len(tcp), 1, 0, 64, 6, 0) \
+        + bytes(int(x) for x in src.split(".")) + bytes(int(x) for x in dst.split("."))
+    from protoforge.core.pcapio import ip_checksum
+    ip = ip[:10] + struct.pack(">H", ip_checksum(ip)) + ip[12:]
+    return b"\xaa" * 6 + b"\xbb" * 6 + b"\x08\x00" + ip + tcp
+
+
+TCP = {
+    "meta": {"name": "pftcp9", "long_name": "ProtoForge TCP E2E Probe",
+             "desegment": True,
+             "length_check": {"field": "plen", "region": "payload"}},
+    "bindings": [{"table": "tcp.port", "ports": [5594]}],
+    "fields": [
+        {"name": "magic", "label": "Magic", "type": "uint16", "display": "hex",
+         "const": "0xCAFE"},
+        {"name": "plen", "label": "Payload Len", "type": "uint16"},
+        {"name": "payload", "label": "Payload", "type": "bytes", "length_from": "plen"},
+    ],
+}
+
+
+@pytest.fixture(scope="module")
+def tcp_deseg(tmp_path_factory):
+    tmp = tmp_path_factory.mktemp("pf_tcp")
+    lua = _gen(tmp, TCP, "tcp.lua")
+    pdu1 = struct.pack(">HH", 0xCAFE, 6) + b"\x11\x22\x33\x44\x55\x66"   # 10 字节
+    pdu2 = struct.pack(">HH", 0xCAFE, 2) + b"\xaa\xbb"                   # 6 字节
+    pkts = [
+        _tcp_packet(pdu1[:6], seq=1, sport=40030, dport=5594),           # 分段 1（前 6 字节）
+        _tcp_packet(pdu1[6:], seq=7, sport=40030, dport=5594),           # 分段 2（后 4 字节）
+        _tcp_packet(pdu2, seq=11, sport=40030, dport=5594),              # 完整第二 PDU
+    ]
+    pcap = tmp / "tcp.pcap"
+    _write_pcap_raw(pcap, pkts)
+    return _run(lua, pcap)
+
+
+def test_desegment_reassembles_split_pdu(tcp_deseg):
+    out = tcp_deseg.stdout
+    assert "Lua Error" not in out
+    assert "Reassembled TCP" in out                      # Wireshark 确实重组了
+    assert "ProtoForge TCP E2E Probe" in out
+    # 重组后的两个 PDU 都被解析（真机 bytes 渲染为连续 hex，无分隔符）
+    assert "112233445566" in out.lower()
+    assert "aabb" in out.lower()
+
+
+def test_desegment_not_triggered_on_full_pdu(tcp_deseg):
+    out = tcp_deseg.stdout
+    # 完整 PDU 正常解析；截断样本由解段路径接管，不应产生 "too short" 误报
+    assert "too short" not in out

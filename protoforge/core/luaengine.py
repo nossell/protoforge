@@ -39,6 +39,7 @@ class DissectResult:
     protocol: str = ""
     consumed: int = 0
     tree: Optional[TreeNode] = None
+    desegment: int = 0               # >0 = 生成的 dissector 请求 TCP 重组的剩余字节数
 
 
 # ---------------- mock Wireshark 对象 ----------------
@@ -210,6 +211,10 @@ class _Cols:
 class _PInfo:
     def __init__(self):
         self.cols = _Cols()
+        self.ip = _NS()
+        self.ip.proto = 6              # 默认按 TCP 语义（desegment 前导仅 TCP 生效）
+        self.desegment_len = 0
+        self.desegment_offset = 0
 
 
 class _TreeItem:
@@ -241,6 +246,10 @@ class _TreeItem:
     def append_text(self, s):
         self.label = (self.label or "") + str(s)
 
+    def set_len(self, n):
+        """对齐真机 TreeItem:set_len：变长容器子字段推进后回设范围长度。"""
+        self.ln = max(0, int(n))
+
 
 class _NS:
     pass
@@ -259,6 +268,8 @@ def _make_globals():
     return {
         "Proto": _Proto, "ProtoField": _ProtoField, "ProtoExpert": _ProtoExpert,
         "DissectorTable": _DissectorTable, "base": base_ns, "expert": expert_ns,
+        # 真机为全局常量（值为 0）；mock 取 -1 哨兵，便于与"未请求(0)"区分断言
+        "DESEGMENT_ONE_MORE_SEGMENT": -1,
     }
 
 
@@ -316,6 +327,7 @@ class LuaEngine:
             ok=True, info=str(pinfo.cols.info), protocol=str(pinfo.cols.protocol),
             consumed=int(rc) if isinstance(rc, (int, float)) else 0,
             tree=_to_treenode(root),
+            desegment=int(pinfo.desegment_len or 0),
         )
         experts: list[str] = []
         _flatten_experts(res.tree, experts)

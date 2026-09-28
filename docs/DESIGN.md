@@ -1,7 +1,7 @@
 # ProtoForge 设计说明书（Design Spec）
 
 > 版本 v0.14.0 ｜ 2026-09-28 ｜ 由 spike（一次性可行性原型，已归档）升级为完整产品
-> v0.10–v0.14 五轮迭代增补见 §4.3，v0.15 AI 辅助生成见 §4.4（原始 v1.0 范围见 §4.1，其中「Won't」项已有三项提前落地）
+> v0.10–v0.14 五轮迭代增补见 §4.3，v0.15 AI 辅助生成见 §4.4，v0.16 见 §4.5（原始 v1.0 范围见 §4.1，其中「Won't」项已有三项提前落地）
 > 背景：市场调研报告《Wireshark 解析器生成器-可行性与市场分析》（随项目归档）
 
 ## 1. 产品定位
@@ -110,6 +110,22 @@ AI 辅助生成与 Kaitai 导入仍为路线图项。）
   （QThread 异步，log 逐行回显，成功即载入主窗口）
 - 隐私边界：请求只发往用户配置的端点；提示词只含用户粘贴的描述与样本；无遥测
 - 测试：test_aigen.py 全离线（注入假 LLM，17 例）；真实 LLM 狗粮验证用本机 Ollama
+
+### 4.5 v0.16 增补：TLV / TCP 解段 / 抓包写出（schema v1.1）
+
+- **TLV 变长元素数组**：`count`/`count_from` 数组元素内允许变长字段与 switch/array
+  （元素局部作用域递归校验；元素内 switch 同须为末项）。生成器对变长元素发
+  零长容器 + `TreeItem:set_len` 回设（真机验证通过）。`length_from` 数组仍要求全定长元素
+  ——新增 `model.is_fixed_layout()` 判定（static_size 对变长字段按 0 宽容计算，不能用于定长判定，
+  此误判曾被单测逮住：容器范围错 → 真机 hex 高亮错位）
+- **顶层裸 TLV 链**：运行时边界从 switch 推广到 count/count_from 数组
+  （`model.is_top_boundary` 为 validate/_split_frame 共用契约），边界后仅允许 crc 收尾
+- **TCP 解段**：`meta.desegment` + `length_check` 生成解段前导（读长度字段 → 不足即请求
+  重组）。真机约束实测：Lua Pinfo 无 `ip` 属性、DissectorTable 不收裸函数——采用官方惯例
+  无条件请求（UDP 侧忽略 desegment）。测试台对 tcp 绑定协议按流重组提取（pcapio seq/stream）
+- **抓包写出**：`pcapio.write_capture`（classic pcap + pcapng LE 写出）+ `build_udp_packet`
+  封装（examples/make_demo 改为复用）；CLI `verify --export`（按扩展名定格式）
+- 测试：test_v16_tlv_tcp.py + E2E 高级套件扩至 TLV/解段/写读往返；当前 194 例
 
 ## 5. 关键设计决策记录
 

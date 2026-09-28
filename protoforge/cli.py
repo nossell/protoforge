@@ -1,12 +1,13 @@
 # -*- coding: utf-8 -*-
-"""ProtoForge CLI：generate / verify / deploy / selftest。
+"""ProtoForge CLI：generate / verify / deploy / ai / selftest。
 
 用法：
   python -m protoforge generate spec.json -o out.lua
   python -m protoforge generate spec.csv -o out.lua
   python -m protoforge verify out.lua --hex 5a5a1101...
-  python -m protoforge verify out.lua --pcap demo.pcap --port 5566
+  python -m protoforge verify out.lua --pcap demo.pcap --port 5566 [--export repro.pcap]
   python -m protoforge deploy out.lua --name smsp [--dir 插件目录]
+  python -m protoforge ai --describe-file desc.txt -o spec.json
   python -m protoforge selftest
 """
 from __future__ import annotations
@@ -71,7 +72,7 @@ def cmd_generate(args) -> int:
     return 0
 
 
-def _collect_frames(args):
+def _collect_frames(args, tcp_stream: bool = False):
     if args.hex:
         hx = args.hex.replace(" ", "").replace("0x", "")
         try:
@@ -94,11 +95,17 @@ def _collect_frames(args):
                 except ValueError:
                     print(f"[错误] 非法端口: {x}", file=sys.stderr)
                     return None
-        return extract_frames(pkts, ports)
+        try:
+            return extract_frames(pkts, ports, tcp_stream=tcp_stream)
+        except (ValueError, OSError) as e:
+            print(f"[错误] 提取载荷失败: {e}", file=sys.stderr)
+            return None
     return None
 
 
 def cmd_verify(args) -> int:
+    import os
+
     try:
         with open(args.lua, "r", encoding="utf-8") as fh:
             code = fh.read()
@@ -107,17 +114,29 @@ def cmd_verify(args) -> int:
     except (OSError, LuaError) as e:
         print(f"[错误] 加载 Lua 失败: {e}", file=sys.stderr)
         return 2
-    frames = _collect_frames(args)
+    # 绑定到 tcp.port 的协议：TCP 载荷按流重组后再喂给解析器
+    tcp_stream = any(str(t).startswith("tcp") for t, _, _ in eng.bindings)
+    frames = _collect_frames(args, tcp_stream=tcp_stream)
     if frames is None:
         print("[错误] 需要 --hex 或 --pcap 之一", file=sys.stderr)
         return 2
     if not frames:
         print("[提示] pcap 中没有匹配端口的帧", file=sys.stderr)
         return 1
+    if args.export:
+        from .core.pcapio import write_capture
+        fmt = "pcapng" if args.export.lower().endswith(".pcapng") else "pcap"
+        dport = sorted(int(x, 0) for x in str(args.port).replace("，", ",").split(",")
+                       if x.strip())[0] if args.port else 5566
+        n = write_capture(args.export, frames, dport=dport, fmt=fmt)
+        print(f"[OK] 已导出 {n} 帧到 {args.export}（Ethernet+IPv4+UDP 封装，目的端口 {dport}）")
     hard_fail = 0
     for i, f in enumerate(frames, 1):
         r = eng.dissect(f)
         _print_result(i, r)
+        if r.desegment > 0:
+            print(f"  [提示] 生成的 dissector 请求 TCP 重组：还需 {r.desegment} 字节"
+                  "（真机 Wireshark 会自动重组；本帧为截断样本）")
         if not r.ok:
             hard_fail += 1
     print(f"绑定: {eng.bindings}")
@@ -263,6 +282,8 @@ def build_parser() -> argparse.ArgumentParser:
     v.add_argument("--pcap", help="pcap / pcapng 文件")
     v.add_argument("--port", default="5566",
                    help="pcap 提取端口，逗号分隔多个（默认 5566）")
+    v.add_argument("--export", default=None,
+                   help="把本次测试帧导出为 pcap/pcapng（按扩展名），便于分享复现")
     v.set_defaults(func=cmd_verify)
 
     d = sub.add_parser("deploy", help="安装 Lua 到 Wireshark 个人插件目录")

@@ -14,8 +14,8 @@ from __future__ import annotations
 import datetime
 
 from .model import (
-    Field, Protocol, ValidationError, is_bitfield, local_bit_groups,
-    static_size, validate, walk,
+    Field, Protocol, ValidationError, field_size, is_bitfield, is_fixed_layout,
+    is_top_boundary, local_bit_groups, static_size, validate, walk,
 )
 
 PRIM_CTORS = {
@@ -95,10 +95,11 @@ class Generator:
         return "le_" if bo == "little" else ""
 
     def _split_frame(self):
-        """顶层切分为 (固定头, 尾部)。切分点：首个 switch；无 switch 则末尾 crc 字段。"""
+        """顶层切分为 (固定头, 尾部)。切分点：首个运行时边界（switch 或 count 计数数组，
+        见 model.is_top_boundary）；无则若末尾为 crc 字段切出 crc。"""
         fields = self.p.fields
         for i, f in enumerate(fields):
-            if f.type == "switch":
+            if is_top_boundary(f):
                 return fields[:i], fields[i:]
         if fields and fields[-1].crc16:
             return fields[:-1], fields[-1:]
@@ -387,8 +388,9 @@ class Generator:
 
     def _emit_array(self, f: Field, parent: str):
         nm = f.name
-        esize = static_size(f.element)
         label = _lua(f.label or "Element")
+        fixed = True
+        esize = None
         if f.length_from:
             rgn = f"rgn_{nm}"
             self.w(f"local {rgn} = v_{f.length_from}")
@@ -398,15 +400,25 @@ class Generator:
             self.w(f"{rgn} = len - off")
             self.i -= 1
             self.w("end")
+            esize = static_size(f.element)      # validate 已保证全定长且 > 0
             cnt = f"math.floor({rgn} / {esize})"
-        elif f.count_from:
-            cnt = f"v_{f.count_from}"
         else:
-            cnt = str(f.count)
+            cnt = f"v_{f.count_from}" if f.count_from else str(f.count)
+            if is_fixed_layout(f.element or []):
+                esize = static_size(f.element)
+            else:
+                fixed = False                    # v1.1 变长元素（TLV 等）：按子字段实际推进
         self.w(f"for i = 1, {cnt} do")
         self.i += 1
-        self.w(f'local st_{nm} = {parent}:add(buffer(off, {esize}), "{label} [" .. (i - 1) .. "]")')
-        self._emit_fields(f.element, f"st_{nm}")
+        if fixed:
+            self.w(f'local st_{nm} = {parent}:add(buffer(off, {esize}), "{label} [" .. (i - 1) .. "]")')
+            self._emit_fields(f.element, f"st_{nm}")
+        else:
+            # 先建零长容器节点，子字段推进 off 后回设实际长度（真机 TreeItem:set_len）
+            self.w(f"local e0_{nm} = off")
+            self.w(f'local st_{nm} = {parent}:add(buffer(off, 0), "{label} [" .. (i - 1) .. "]")')
+            self._emit_fields(f.element, f"st_{nm}")
+            self.w(f"st_{nm}:set_len(off - e0_{nm})")
         self.i -= 1
         self.w("end")
 
@@ -432,11 +444,22 @@ class Generator:
         self.w("end")
         self.w(f"off = off + {csize}")
 
+    def _desegment_probe(self, header_fields):
+        """meta.desegment 前导参数：(长度字段偏移, 尺寸, le前缀)；validate 已保证可静态定位。"""
+        lf = self.p.length_check["field"]
+        off = 0
+        for f in header_fields:
+            if f.name == lf:
+                return off, field_size(f), self._bo(f)
+            off += field_size(f)
+        return None
+
     def _dissector(self):
         fields = self.p.fields
         header_fields, rest = self._split_frame()   # rest 以 switch 开头，或只含尾部 crc，或空
-        top_switch = rest[0] if rest and rest[0].type == "switch" else None
-        trailer_fields = rest[1:] if top_switch else rest
+        boundary = rest[0] if rest and is_top_boundary(rest[0]) else None
+        top_switch = boundary if boundary is not None and boundary.type == "switch" else None
+        trailer_fields = rest[1:] if boundary is not None else rest
         header = static_size(header_fields)
         trailer = static_size(trailer_fields) if trailer_fields else 0
         self.frame_trailer = trailer
@@ -445,6 +468,26 @@ class Generator:
         self.w("function proto.dissector(buffer, pinfo, tree)")
         self.i += 1
         self.w("local len = buffer:len()")
+        if self.p.desegment:
+            off_l, size_l, le_l = self._desegment_probe(header_fields)
+            self.w("-- TCP 解段（meta.desegment）：帧不完整时请求 Wireshark 重组。")
+            self.w("-- 真机 Pinfo 无法直接区分 TCP/UDP（pinfo.ip 不存在），采用官方惯例：")
+            self.w("-- 无条件请求；UDP 侧会忽略 desegment 请求（截断的 UDP 样本显示为 Data）。")
+            self.w(f"if len < {off_l + size_l} then")
+            self.i += 1
+            self.w("pinfo.desegment_len = DESEGMENT_ONE_MORE_SEGMENT")
+            self.w("pinfo.desegment_offset = 0")
+            self.w("return len")
+            self.i -= 1
+            self.w("end")
+            self.w(f"local want_total = {min_len} + buffer({off_l}, {size_l}):{le_l}uint()")
+            self.w("if len < want_total then")
+            self.i += 1
+            self.w("pinfo.desegment_len = want_total - len")
+            self.w("pinfo.desegment_offset = 0")
+            self.w("return len")
+            self.i -= 1
+            self.w("end")
         self.w(f"if len < {min_len} then")
         self.i += 1
         # 认领该帧：真机上返回 0 会丢弃已加的树节点与 expert（Data 接手），
@@ -477,8 +520,11 @@ class Generator:
             self.w(f'st:add_proto_expert_info(pe_len_bad, string.format("{lf}=%d, 但按帧长 %d 应为 %d", v_{lf}, len, len - {header} - {trailer}))')
             self.i -= 1
             self.w("end")
-        if top_switch:
-            self._emit_switch(top_switch, "st")
+        if boundary is not None:
+            if boundary.type == "switch":
+                self._emit_switch(boundary, "st")
+            else:  # v1.1：顶层裸 TLV 链（count/count_from 数组作为运行时边界）
+                self._emit_fields([boundary], "st")
         for f in trailer_fields:
             if f.crc16:
                 self._emit_crc(f)

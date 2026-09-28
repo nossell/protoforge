@@ -1,0 +1,29 @@
+{
+  "meta": {
+    "name": "tlvdev",
+    "long_name": "TLV Device Telemetry (Demo)",
+    "desc": "教学用 TLV 示例协议（虚构）：头部 + N 个 type/len/value 元素。v1.1 schema 示范",
+    "byte_order": "big"
+  },
+  "bindings": [
+    { "table": "udp.port", "ports": [7600] }
+  ],
+  "fields": [
+    { "name": "magic",  "label": "Magic",       "type": "uint16", "display": "hex", "const": "0x544C" },
+    { "name": "ver",    "label": "Version",     "type": "uint", "width": 4 },
+    { "name": "flags",  "label": "Flags",       "type": "uint", "width": 4 },
+    { "name": "count",  "label": "TLV Count",   "type": "uint8" },
+    { "name": "tlvs",   "label": "TLV",         "type": "array", "count_from": "count",
+      "element": [
+        { "name": "type", "label": "Type", "type": "uint8",
+          "enum": { "1": "U32Value", "2": "AsciiNote", "3": "RawBlob" } },
+        { "name": "len",  "label": "Length", "type": "uint8" },
+        { "name": "value", "label": "Value", "type": "switch", "on": "type",
+          "cases": {
+            "1": [ { "name": "num",  "label": "Number", "type": "uint32" } ],
+            "2": [ { "name": "note", "label": "Note",   "type": "string", "length_from": "len" } ],
+            "default": [ { "name": "raw", "label": "Raw", "type": "bytes", "length_from": "len" } ]
+          } }
+      ] }
+  ]
+}

@@ -121,6 +121,12 @@ a{color:var(--accent)}
 <td><code>udp</code> / <code>tcp</code>：额外注册启发式解析器；启用时<strong>首字段必须带 const</strong> 且存在对应端口绑定</td>
 </tr>
 <tr>
+<td><code>desegment</code></td>
+<td>bool</td>
+<td>—</td>
+<td>v1.1：<code>true</code> 时生成 TCP 解段前导（帧不完整按 <code>length_check</code> 请求 Wireshark 重组）；需要 tcp.port 绑定 + <code>length_check</code> + 长度字段前可静态定位；UDP 侧会忽略解段请求（截断样本显示为 Data）</td>
+</tr>
+<tr>
 <td><code>length_check</code></td>
 <td>object</td>
 <td>—</td>
@@ -256,7 +262,7 @@ a{color:var(--accent)}
 <tr>
 <td><code>array</code></td>
 <td><code>count</code> / <code>count_from</code> / <code>length_from</code> 三选一；<code>element</code></td>
-<td>元素须全为定长字段；<code>length_from</code> 按元素大小整除计数（元素含变长字段或尺寸为 0 会被校验拒绝）</td>
+<td><strong>v1.1：<code>count</code>/<code>count_from</code> 数组的元素允许变长字段与 switch/array</strong>（TLV 形态：<code>[type(enum), len, value switch on type]</code>，元素内 switch 同样须为末项，元素局部字段可被引用）；<code>length_from</code> 数组仍要求元素全定长（按区域字节数整除计数）</td>
 </tr>
 <tr>
 <td><code>uint16</code>/<code>uint8</code> +</td>
@@ -277,11 +283,12 @@ a{color:var(--accent)}
 <li><code>meta.length_check.field</code> 必须是<strong>顶层数值</strong>字段</li>
 <li><strong>switch 必须是所在字段列表的最后一项</strong>（switch 长度运行时可变，其后字段无法定位）；<br />
    顶层例外：switch 之后仅允许 crc 收尾；<code>default</code> 分支视为逻辑上的最后项；支持 case 内嵌套 switch（同为末项）</li>
-<li>顶层最多一个 switch；顶层 array 仅支持 <code>length_from</code> 模式（count/count_from 数组请放入 case 内）</li>
+<li>顶层最多一个 switch；<strong>v1.1：顶层 count/count_from 数组作为运行时边界合法（裸 TLV 链）</strong>，边界（switch 或 count 数组）之后仅允许 crc16 收尾；<code>length_from</code> 顶层数组任意位置可用</li>
 <li>校验和字段必须位于顶层末尾且类型与算法匹配：<br />
    ccitt_false / modbus / xmodem / sum16 → <code>uint16</code>；sum8 → <code>uint8</code>；case 内不允许校验和</li>
-<li><code>array.count</code> 必须是 0-65535 的整数；<code>count</code> / <code>count_from</code> / <code>length_from</code> 三选一；元素内不允许嵌套 switch/array；<br />
-<code>length_from</code> 数组的元素必须<strong>全为定长字段且尺寸 &gt; 0</strong>（否则无法按字节区域整除计数）</li>
+<li><code>array.count</code> 必须是 0-65535 的整数；<code>count</code> / <code>count_from</code> / <code>length_from</code> 三选一；<br />
+   v1.1：元素内允许 switch/array 与变长字段（作用域含元素局部）；<br />
+<code>length_from</code> 数组的元素必须<strong>全为定长字段且尺寸 &gt; 0</strong>（TLV 形态请改用 count_from/count）</li>
 <li><code>const</code> 仅支持数值/位域字段且不能为负数（无符号字段）；<code>terminated_by</code> 仅支持 string 且取值 0-255</li>
 <li>至少一个绑定；端口 1-65535；表名仅 <code>udp.port</code>/<code>tcp.port</code>；多绑定（同时 udp+tcp）由 bindings 数组表达</li>
 <li>switch 至少一个 case 或 default；array 必须提供 element</li>

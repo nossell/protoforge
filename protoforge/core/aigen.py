@@ -99,6 +99,8 @@ Schema:
     "desc": "<optional>",
     "byte_order": "big" | "little",          // optional, default big
     "heuristic": "udp" | "tcp",              // optional; requires first field to have const
+    "desegment": true,                       // optional (v1.1): request TCP reassembly;
+                                             //   requires a tcp.port binding + length_check
     "length_check": {"field": "<top-level numeric field>"}   // optional payload-length check
   },
   "bindings": [{"table": "udp.port" | "tcp.port", "ports": [int, ...]}, ...],  // required >=1
@@ -116,12 +118,16 @@ Types:
 - "string" / "bytes": exactly ONE of "size": int>=1, "length_from": "<prior numeric field>",
   "terminated_by": 0..255 (string only)
 - "switch": {"on": "<prior numeric field>", "cases": {"<int>": [fields...], "default": [fields?]}}
-  The switch MUST be the LAST field of its list. Max ONE top-level switch; after it only a
-  trailing crc field is allowed. Cases may contain a nested switch as their last field.
+  The switch MUST be the LAST field of its list. Max ONE top-level switch. A top-level
+  count/count_from array (bare TLV chain) acts as the same kind of boundary; after such a
+  boundary only a trailing crc field may follow. Cases may contain a nested switch as
+  their last field.
 - "array": exactly ONE of "count": int 0..65535, "count_from": "<prior numeric field>",
-  "length_from": "<prior numeric field>"; plus "element": [fields...]. Elements must be all
-  fixed-size (no length_from/terminated_by/switch/array inside). For length_from arrays the
-  element must have a static size > 0.
+  "length_from": "<prior numeric field>"; plus "element": [fields...].
+  count/count_from arrays MAY have variable elements - the classic TLV pattern is
+  element = [type uint8 (with enum), len uint8, value switch on type whose cases use
+  length_from=len]. Inside an element the switch must also be the last field.
+  length_from arrays still require ALL-FIXED elements (static size > 0).
 - checksum field: "crc16": "ccitt_false"|"modbus"|"xmodem"|"sum8"|"sum16", type uint16
   (uint8 for sum8), MUST be the very last top-level field. modbus reads little-endian on wire.
 

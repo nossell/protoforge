@@ -10,33 +10,10 @@ import struct
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from protoforge.core.pcapio import build_udp_packet as wrap_udp  # noqa: E402
 from tests.conftest import crc16_ccitt_false, smsp_frame, telemetry_payload  # noqa: E402
 
 OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "demo.pcap")
-
-
-def ip4(a):
-    return bytes(int(x) for x in a.split("."))
-
-
-def ip_checksum(hdr):
-    if len(hdr) % 2:
-        hdr += b"\x00"
-    s = 0
-    for i in range(0, len(hdr), 2):
-        s += (hdr[i] << 8) | hdr[i + 1]
-    while s >> 16:
-        s = (s & 0xFFFF) + (s >> 16)
-    return (~s) & 0xFFFF
-
-
-def wrap_udp(payload, sport, dport):
-    udp = struct.pack(">HHHH", sport, dport, 8 + len(payload), 0) + payload
-    src, dst = ip4("192.168.10.50"), ip4("192.168.10.200")
-    ip = struct.pack(">BBHHHBBH", 0x45, 0, 20 + len(udp), 0x1234, 0x4000, 64, 17, 0) + src + dst
-    ip = ip[:10] + struct.pack(">H", ip_checksum(ip)) + ip[12:]
-    eth = bytes.fromhex("aabbccddeeff112233445566") + b"\x08\x00"
-    return eth + ip + udp
 
 
 def main():

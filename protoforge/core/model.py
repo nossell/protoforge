@@ -65,6 +65,7 @@ class Protocol:
     length_check: Optional[dict] = None   # {"field": name, "region": "payload"}
     byte_order: str = "big"               # 协议默认字节序：big | little
     heuristic: Optional[str] = None       # 启发式注册表："udp" | "tcp"（启用时首字段必须带 const）
+    desegment: bool = False               # TCP 解段：按 length_check 请求 Wireshark 重组（v1.1）
 
 
 def is_bitfield(f: Field) -> bool:
@@ -125,6 +126,33 @@ def _scan_bit_groups(fields: list, errors: list, where: str) -> list:
     if grp:
         groups.append(grp)
     return groups
+
+
+def is_top_boundary(f: "Field") -> bool:
+    """顶层运行时边界：switch，或 count/count_from 计数的数组（裸 TLV 链）。
+    边界之后仅允许 crc16 收尾。model.validate / generator._split_frame 共用。"""
+    return f.type == "switch" or (f.type == "array"
+                                  and (f.count is not None or f.count_from is not None))
+
+
+def is_fixed_layout(fields: list) -> bool:
+    """列表是否全为定长字段（用于数组元素容器范围的静态计算）。
+    注意与 static_size 的区别：static_size 对变长字段按 0 贡献"宽容"计算最小长度，
+    不能用于判定定长——含 length_from/terminated_by 的元素必须走运行时 set_len 路径。"""
+    for f in fields:
+        if is_bitfield(f):
+            continue                     # 位域按组计入，视为定长
+        if f.type == "switch":
+            return False
+        if f.type == "array":
+            if f.count is None:          # count_from/length_from 数组依赖运行时值
+                return False
+            if not is_fixed_layout(f.element or []):
+                return False
+            continue
+        if f.type in ("string", "bytes") and (f.length_from or f.terminated_by is not None):
+            return False
+    return True
 
 
 def bitfield_groups(fields: list) -> list:
@@ -278,20 +306,20 @@ def validate(p: Protocol) -> list:
                 if not f.element:
                     errors.append(f"{where}/{f.name}: array 缺少 element 字段列表")
                 else:
-                    for e in f.element:
-                        if e.type in ("switch", "array"):
-                            errors.append(f"{where}/{f.name}: v1 元素内不允许嵌 {e.type}")
-                        check_common(e, f"{where}/{f.name} 元素")
+                    # v1.1：元素内允许变长字段与 switch/array（TLV 等真实协议形态），
+                    # 元素局部作用域与外层一致地递归校验
                     check_list(f.element, f"{where}/{f.name} 元素", dict(visible), False)
                     # length_from 按「区域字节数 ÷ 元素尺寸」计数：元素必须全定长且尺寸 > 0，
                     # 否则生成 math.floor(rgn / 0)（Lua 得 inf，循环失控）。
+                    # count/count_from 数组无此限制（逐字段推进偏移，天然支持 TLV）。
                     if f.length_from:
                         var = next((e for e in walk(f.element)
                                     if e.length_from or e.terminated_by is not None
                                     or e.type in ("switch", "array")), None)
                         if var is not None:
                             errors.append(f"{where}/{f.name}: length_from 数组的元素必须全为定长字段"
-                                          f"（'{var.name}' 是变长/嵌套结构，无法按字节区域计数）")
+                                          f"（'{var.name}' 是变长/嵌套结构，无法按字节区域计数）"
+                                          f"（TLV 形态请改用 count_from/count 计数）")
                         else:
                             try:
                                 esz = static_size(f.element)
@@ -344,16 +372,20 @@ def validate(p: Protocol) -> list:
     top_switches = [f for f in p.fields if f.type == "switch"]
     if len(top_switches) > 1:
         errors.append("顶层最多允许一个 switch（多分支请用同一 switch 的多个 case 表达）")
-    top_arrays = [f for f in p.fields if f.type == "array"]
-    for f in top_arrays:
-        if not f.length_from:
-            errors.append(f"顶层 array '{f.name}' 仅支持 length_from 计数模式"
-                          f"（count/count_from 数组请放入 switch case 内）")
-    if top_switches:
-        after = p.fields[p.fields.index(top_switches[0]) + 1:]
-        for f in after:
+    # 运行时边界 = 首个 switch 或 count/count_from 数组（裸 TLV 链形态）；
+    # 边界之后仅允许 crc16 收尾（长度运行时可变，后续字段无法定位）
+    boundary_idx = None
+    for i, f in enumerate(p.fields):
+        if is_top_boundary(f):
+            boundary_idx = i
+            break
+    if boundary_idx is not None:
+        bf = p.fields[boundary_idx]
+        kind = "switch" if bf.type == "switch" else "count/count_from 数组"
+        for f in p.fields[boundary_idx + 1:]:
             if not f.crc16:
-                errors.append(f"switch 之后的顶层字段 '{f.name}' 不受支持（仅允许 crc16 收尾）")
+                errors.append(f"顶层{kind} '{bf.name}' 之后的字段 '{f.name}' 不受支持"
+                              f"（运行时可变结构后仅允许 crc16 收尾）")
 
     # 重名（全树唯一）
     seen = {}
@@ -388,6 +420,28 @@ def validate(p: Protocol) -> list:
                 errors.append(f"length_check.field '{lf}' 不存在（须为顶层字段）")
             elif not is_numeric(ref):
                 errors.append(f"length_check.field '{lf}' 必须是数值字段")
+
+    # TCP 解段（v1.1）：需要 tcp 绑定 + length_check，且长度字段前布局可静态定位
+    if p.desegment:
+        if not any(b.table == "tcp.port" for b in p.bindings):
+            errors.append("meta.desegment = true 需要至少一个 tcp.port 绑定（UDP 帧天然完整无需重组）")
+        if not p.length_check:
+            errors.append("meta.desegment = true 需要 meta.length_check（重组目标长度依据长度字段计算）")
+        else:
+            lf = p.length_check.get("field")
+            consumed = 0
+            for f in p.fields:
+                if f.name == lf:
+                    if not is_numeric(f) or is_bitfield(f):
+                        errors.append(f"meta.desegment 的长度字段 '{lf}' 必须是非位域数值字段")
+                    break
+                if field_size(f) is None:
+                    errors.append(f"meta.desegment 的长度字段 '{lf}' 之前存在无法静态定位的字段"
+                                  f" '{f.name}'（解段前导需要按固定偏移读取长度）")
+                    break
+                consumed += field_size(f) or 0
+            else:
+                errors.append(f"meta.desegment 的长度字段 '{lf}' 不存在")
 
     return errors
 

@@ -49,6 +49,12 @@ result is verified before it ever touches a real capture.
   bitfields (MSB-first) / enums / big or little endian (protocol default + per-field override)
 - Structures: switch payloads (nested, with default branch), fixed-count / count-from /
   region-length arrays, NUL-terminated strings
+- TLV element arrays (schema v1.1): array elements may contain variable-length fields and
+  switches — the ubiquitous `[type, length, value]` pattern; bare top-level TLV chains are
+  expressed directly (header + count array + CRC, no wrapper switch needed)
+- TCP desegmentation: `meta.desegment` requests Wireshark reassembly for split PDUs; the
+  test bench reassembles TCP streams per direction for tcp-bound protocols
+- Repro export: `verify --export` writes the frames under test to pcap/pcapng for issues
 - Checks: checksum family (CRC-16 CCITT-FALSE / MODBUS / XMODEM / SUM8 / SUM16) with Expert
   Info, magic constants, payload length semantics, short-packet and trailing-byte guards
 - Test bench: hex / pcap / pcapng input, real Lua execution via lupa, tree + byte-highlight
@@ -66,11 +72,12 @@ result is verified before it ever touches a real capture.
 
 ## Status
 
-v0.15.0 — AI-assisted definition generation (description → validated JSON with a
-self-repair loop). Earlier rounds added big/little endian (protocol and field level),
+v0.16.0 — TLV element arrays (schema v1.1), TCP desegmentation and capture export.
+Earlier: AI-assisted definition generation (v0.15, description → validated JSON with a
+self-repair loop); big/little endian (protocol and field level),
 variable-length fields/arrays (`length_from`), a checksum family (CRC-16 CCITT-FALSE /
 MODBUS / XMODEM, SUM8/16), NUL-terminated strings, nested switches with a default branch,
-pcapng input, multiple udp+tcp bindings, and heuristic registration. 180 tests (unit /
+pcapng input, multiple udp+tcp bindings, and heuristic registration. 194 tests (unit /
 integration / GUI offscreen / real-tshark E2E, including a dedicated suite that drives
 every feature round through real tshark). Roadmap and known limitations: see
 `docs/USER_MANUAL.md` (section 14).

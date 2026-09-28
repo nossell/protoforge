@@ -118,13 +118,25 @@ def test_length_check_ref():
     assert any("length_check" in e for e in validate(p))
 
 
-def test_element_cannot_nest_switch():
+def test_element_can_nest_switch_v11():
+    """v1.1：元素内允许嵌 switch（须为元素末项），TLV 形态合法。"""
+    # switch 之后还有字段 → 仍拒绝（switch 必须是所在列表末项）
     p = make_proto([
         Field("n", type="uint8"),
         Field("arr", type="array", count_from="n",
-              element=[Field("s", type="switch", on="n", cases={1: [Field("x")]})]),
+              element=[Field("s", type="switch", on="n", cases={1: [Field("x")]}),
+                       Field("after", type="uint8")]),
     ])
-    assert any("元素内不允许嵌" in e for e in validate(p))
+    assert any("之后不允许再出现字段" in e for e in validate(p))
+
+    # 元素 = [类型, 值-switch-on-类型] 的 TLV 形态 → 合法
+    p2 = make_proto([
+        Field("n", type="uint8"),
+        Field("arr", type="array", count_from="n",
+              element=[Field("s", type="switch", on="n",
+                             cases={1: [Field("x", type="uint16")]})]),
+    ])
+    assert validate(p2) == []
 
 
 def test_walk_and_sizes(smsp):

@@ -69,7 +69,7 @@ a{color:var(--accent)}
 <main>
 <h1 id="protoforge-使用手册">ProtoForge 使用手册</h1>
 <blockquote>
-<p>版本 v0.15.0 ｜ 2026-09-29 ｜ 适用于 Windows（Linux/macOS 同理）<br />
+<p>版本 v0.16.0 ｜ 2026-09-29 ｜ 适用于 Windows（Linux/macOS 同理）<br />
 ProtoForge 是一个 Wireshark Lua 解析器（dissector）生成器：声明式定义私有二进制协议，<br />
 一键生成完整 Lua 解析器、一键部署进 Wireshark、内置测试台免抓包验证。</p>
 </blockquote>
@@ -809,10 +809,18 @@ python -m protoforge generate myproto.json -o myproto.lua
 </ul>
 <hr />
 <h2 id="14-路线图与已知限制">14. 路线图与已知限制</h2>
-<p>v0.10–v0.15 已新增（此前为限制项）：</p>
+<p>v0.10–v0.16 已新增（此前为限制项）：</p>
 <ul>
+<li><strong>AI 辅助生成</strong>（v0.15）：自然语言描述 → 协议定义 JSON，校验错误自修复循环（见第 10 节）</li>
+<li><strong>TLV 变长元素数组</strong>（v0.16，schema v1.1）：count/count_from 数组的元素允许变长字段与<br />
+  switch/array——真实协议最常见的 TLV 形态（<code>[type(enum), len, value switch]</code>）；<br />
+  顶层裸 TLV 链（头部 + count 数组 + CRC）直接表达，无需再包一层假 switch</li>
+<li><strong>TCP 解段</strong>（v0.16）：<code>meta.desegment = true</code> 生成解段前导，帧不完整时请求 Wireshark<br />
+  按 <code>length_check</code> 重组（真机验证：单 PDU 跨两分段自动拼装解析）；测试台对 TCP 协议<br />
+  按流重组提取载荷</li>
 <li>
-<p><strong>AI 辅助生成</strong>（v0.15）：自然语言描述 → 协议定义 JSON，校验错误自修复循环（见第 10 节）</p>
+<p><strong>抓包写出</strong>（v0.16）：<code>verify --export</code> 把测试帧导出为 pcap/pcapng（Ethernet+IPv4+UDP<br />
+  封装），便于把复现样本附到 issue</p>
 </li>
 <li>
 <p><strong>小端字节序</strong>：协议级默认 + 字段级覆盖（<code>meta.byte_order</code> / 字段 <code>byte_order</code>）</p>
@@ -836,34 +844,14 @@ python -m protoforge generate myproto.json -o myproto.lua
 </thead>
 <tbody>
 <tr>
-<td>length_from 变长元素数组</td>
+<td>length_from 数组的变长元素</td>
 <td>路线图</td>
-<td>元素自身长度可变的场景（当前 length_from 数组要求元素全定长，变长元素会被校验拒绝）</td>
-</tr>
-<tr>
-<td>switch 嵌套于 array 元素</td>
-<td>路线图</td>
-<td>元素内仅允许定长字段</td>
-</tr>
-<tr>
-<td>pcapng 写入</td>
-<td>路线图</td>
-<td>测试台只读</td>
+<td>仍按「区域字节 ÷ 元素尺寸」计数语义（TLV 请用 count_from；变长元素会被校验拒绝）</td>
 </tr>
 <tr>
 <td>Kaitai .ksy 导入</td>
 <td>路线图</td>
-<td>借力其协议描述生态</td>
-</tr>
-<tr>
-<td>TLV 变长元素数组（schema v1.1）</td>
-<td>路线图</td>
-<td>数组元素内可用 length_from/switch——真实协议最常见的 TLV 形态</td>
-</tr>
-<tr>
-<td>TCP 解段（desegment）</td>
-<td>路线图</td>
-<td>按 payloadLen 请求 Wireshark 重组 + 测试台 TCP 流重组，为 SOME/IP 类 TCP 协议铺路</td>
+<td>借力其协议描述生态（等真实反馈）</td>
 </tr>
 <tr>
 <td>大端位域之外的位序自定义</td>
@@ -879,7 +867,7 @@ python -m protoforge generate myproto.json -o myproto.lua
 <li>详见 <code>docs/PROTOCOL_SCHEMA.md</code> 的校验规则清单与字段说明</li>
 </ul>
 <hr />
-<p><em>ProtoForge v0.15.0 · 本手册随源码交付于 <code>docs/USER_MANUAL.md</code> · 截图由 <code>tools/make_screens.py</code> 生成</em></p>
+<p><em>ProtoForge v0.16.0 · 本手册随源码交付于 <code>docs/USER_MANUAL.md</code> · 截图由 <code>tools/make_screens.py</code> 生成</em></p>
 </main>
 </body>
 </html>

@@ -1,6 +1,6 @@
 # ProtoForge 使用手册
 
-> 版本 v0.15.0 ｜ 2026-09-29 ｜ 适用于 Windows（Linux/macOS 同理）
+> 版本 v0.16.0 ｜ 2026-09-29 ｜ 适用于 Windows（Linux/macOS 同理）
 > ProtoForge 是一个 Wireshark Lua 解析器（dissector）生成器：声明式定义私有二进制协议，
 > 一键生成完整 Lua 解析器、一键部署进 Wireshark、内置测试台免抓包验证。
 
@@ -562,9 +562,17 @@ python -m protoforge generate myproto.json -o myproto.lua
 
 ## 14. 路线图与已知限制
 
-v0.10–v0.15 已新增（此前为限制项）：
+v0.10–v0.16 已新增（此前为限制项）：
 
 - **AI 辅助生成**（v0.15）：自然语言描述 → 协议定义 JSON，校验错误自修复循环（见第 10 节）
+- **TLV 变长元素数组**（v0.16，schema v1.1）：count/count_from 数组的元素允许变长字段与
+  switch/array——真实协议最常见的 TLV 形态（`[type(enum), len, value switch]`）；
+  顶层裸 TLV 链（头部 + count 数组 + CRC）直接表达，无需再包一层假 switch
+- **TCP 解段**（v0.16）：`meta.desegment = true` 生成解段前导，帧不完整时请求 Wireshark
+  按 `length_check` 重组（真机验证：单 PDU 跨两分段自动拼装解析）；测试台对 TCP 协议
+  按流重组提取载荷
+- **抓包写出**（v0.16）：`verify --export` 把测试帧导出为 pcap/pcapng（Ethernet+IPv4+UDP
+  封装），便于把复现样本附到 issue
 
 - **小端字节序**：协议级默认 + 字段级覆盖（`meta.byte_order` / 字段 `byte_order`）
 - **变长字段/数组**：string/bytes/数组支持 `length_from`（按字节区域长度，越界自动钳制并告警）
@@ -579,12 +587,8 @@ v1 仍未支持（路线图）：
 
 | 特性 | 状态 | 说明 |
 |---|---|---|
-| length_from 变长元素数组 | 路线图 | 元素自身长度可变的场景（当前 length_from 数组要求元素全定长，变长元素会被校验拒绝） |
-| switch 嵌套于 array 元素 | 路线图 | 元素内仅允许定长字段 |
-| pcapng 写入 | 路线图 | 测试台只读 |
-| Kaitai .ksy 导入 | 路线图 | 借力其协议描述生态 |
-| TLV 变长元素数组（schema v1.1） | 路线图 | 数组元素内可用 length_from/switch——真实协议最常见的 TLV 形态 |
-| TCP 解段（desegment） | 路线图 | 按 payloadLen 请求 Wireshark 重组 + 测试台 TCP 流重组，为 SOME/IP 类 TCP 协议铺路 |
+| length_from 数组的变长元素 | 路线图 | 仍按「区域字节 ÷ 元素尺寸」计数语义（TLV 请用 count_from；变长元素会被校验拒绝） |
+| Kaitai .ksy 导入 | 路线图 | 借力其协议描述生态（等真实反馈） |
 | 大端位域之外的位序自定义 | 路线图 | 位域按 MSB 分配 |
 
 已知限制：
@@ -595,4 +599,4 @@ v1 仍未支持（路线图）：
 
 ---
 
-*ProtoForge v0.15.0 · 本手册随源码交付于 `docs/USER_MANUAL.md` · 截图由 `tools/make_screens.py` 生成*
+*ProtoForge v0.16.0 · 本手册随源码交付于 `docs/USER_MANUAL.md` · 截图由 `tools/make_screens.py` 生成*
