@@ -7,7 +7,7 @@ import os
 from PySide6.QtCore import Qt, QUrl
 from PySide6.QtGui import QAction, QDesktopServices
 from PySide6.QtWidgets import (
-    QComboBox, QFileDialog, QHBoxLayout, QLabel, QLineEdit,
+    QComboBox, QDialog, QFileDialog, QHBoxLayout, QLabel, QLineEdit,
     QMainWindow, QMessageBox, QPlainTextEdit, QPushButton, QSplitter,
     QTabWidget, QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget,
 )
@@ -145,6 +145,7 @@ class MainWindow(QMainWindow):
         mb = self.menuBar()
         m_file = mb.addMenu("文件(&F)")
         for text, fn in (("新建", self._new), ("打开 JSON…", self._open),
+                         ("AI 生成协议定义…", self._ai_generate),
                          ("保存 JSON…", self._save_json), ("导入 CSV…", self._import_csv),
                          ("导出 CSV…", self._export_csv), ("导出 Lua…", self._export_lua)):
             a = QAction(text, self)
@@ -291,6 +292,15 @@ class MainWindow(QMainWindow):
         path, _ = QFileDialog.getOpenFileName(self, "打开协议定义", "", "ProtoForge (*.json *.csv);;JSON (*.json);;CSV (*.csv)")
         if path:
             self.load_protocol(path)
+
+    def _ai_generate(self):
+        from .ai_dialog import AiDialog
+        dlg = AiDialog(self)
+        if dlg.exec() == QDialog.DialogCode.Accepted and dlg.protocol is not None:
+            self.protocol = dlg.protocol
+            self._reload_all()
+            self.statusBar().showMessage(
+                f"AI 生成的定义已载入：{self.protocol.name}（可在字段结构与属性面板中核对后生成）")
 
     def _save_json(self):
         path, _ = QFileDialog.getSaveFileName(self, "保存协议定义", f"{self.protocol.name}.json", "JSON (*.json)")

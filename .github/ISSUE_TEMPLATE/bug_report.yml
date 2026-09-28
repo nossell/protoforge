@@ -1,0 +1,50 @@
+name: Bug report
+description: Report a problem with generated dissectors, the GUI, or the CLI
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report an issue. Please fill in the details below —
+        the JSON definition is the most important part (remove any proprietary fields first).
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: Also tell us what you expected to happen instead.
+    validations:
+      required: true
+  - type: textarea
+    id: definition
+    attributes:
+      label: Protocol definition (JSON)
+      description: Attach or paste the .json definition that reproduces the problem.
+      placeholder: |
+        {"meta": {"name": "..."}, "bindings": [...], "fields": [...]}
+    validations:
+      required: true
+  - type: textarea
+    id: sample
+    attributes:
+      label: Sample frame (hex) or capture
+      description: A hex string of one frame, or attach a pcap/pcapng. Mandatory for wrong-parse reports.
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Generated Lua / dissection result
+        - GUI
+        - CLI
+        - AI-assisted generation
+        - Other
+    validations:
+      required: true
+  - type: input
+    id: versions
+    attributes:
+      label: Versions
+      description: ProtoForge version (`python -m protoforge --version`), Wireshark version, OS.
+      placeholder: ProtoForge 0.15.0 / Wireshark 4.6 / Windows 11
+    validations:
+      required: true

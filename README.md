@@ -5,6 +5,8 @@
 
 [English](README.en.md) | 简体中文（本文件）
 
+[![CI](https://github.com/nossell/protoforge/actions/workflows/ci.yml/badge.svg)](https://github.com/nossell/protoforge/actions/workflows/ci.yml)
+
 ![主界面](docs/screenshots/main_window.png)
 
 ```
@@ -24,6 +26,8 @@ run_tests.bat                   # 全量测试（含真实 tshark E2E）
 
 ## 功能
 
+- **AI 辅助生成**：自然语言描述（+ 可选 hex 样本）→ 协议定义 JSON，校验错误自动回喂 LLM
+  自修复；OpenAI 兼容端点（本地 Ollama / GLM / DeepSeek…），key 只存本机
 - **类型系统**：uint8-32 / int8-32 / 定长与变长 string / bytes / 连续位域自动打包（MSB 分配）/ 枚举 / hex·dec 显示
 - **字节序**：协议级默认 + 字段级覆盖（大端 / 小端，小端生成 `add_le`）
 - **变长能力**：`length_from` 变长 string/bytes/数组（带越界钳制与告警）；终止符字符串（如 0x00 结尾）
@@ -32,17 +36,17 @@ run_tests.bat                   # 全量测试（含真实 tshark E2E）
 - **防御检查**：幻数检查、payloadLen 语义检查、过短包/尾随字节防御
 - **测试台**：hex / pcap / pcapng 输入 → 内置 lupa 引擎**真实执行生成的 Lua** → 解析树 + 字节高亮联动
 - **部署**：跨平台插件目录发现、安装/卸载、tshark 版本检测、UDP/TCP 启发式注册
-- **CLI**：`generate / verify / deploy / selftest`（CI 友好，退出码规范，多端口提取）
+- **CLI**：`generate / verify / deploy / ai / selftest`（CI 友好，退出码规范，多端口提取）
 
 ## 目录
 
 ```
 protoforge/            Python 包
-  core/                纯逻辑层（model/generator/jsonio/csvimport/luaengine/pcapio/deploy）
+  core/                纯逻辑层（model/generator/jsonio/csvimport/luaengine/pcapio/deploy/aigen）
   app/                 PySide6 GUI
   cli.py               命令行入口
-tests/                 70+ 用例：单元 / 集成 / GUI offscreen / 真实 tshark E2E
-examples/              SMSP 示例（json/csv/demo.pcap/make_demo.py）
+tests/                 180 用例：单元 / 集成 / GUI offscreen / 真实 tshark E2E
+examples/              SMSP 与车载 SADP 示例（json/csv/pcap/构造脚本）
 docs/                  DESIGN.md / PLAN.md / USER_MANUAL.md / PROTOCOL_SCHEMA.md / screenshots/
 tools/make_screens.py  手册截图生成
 ```
@@ -56,8 +60,9 @@ tools/make_screens.py  手册截图生成
 
 ## 状态
 
-v0.14.0（2026-09-28）——历经 5 轮功能迭代：字节序、变长字段、校验和家族、终止符字符串、
-嵌套 switch/default、pcapng、多绑定、启发式注册。路线图见手册第 13 节。
+v0.15.0（2026-09-29）——新增 **AI 辅助生成**（描述→定义 JSON，自修复校验循环）。此前五轮迭代：
+字节序、变长字段、校验和家族、终止符字符串、嵌套 switch/default、pcapng、多绑定、启发式注册。
+路线图见手册第 14 节。
 
 ## 商业与支持
 

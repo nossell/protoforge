@@ -69,7 +69,7 @@ a{color:var(--accent)}
 <main>
 <h1 id="protoforge-使用手册">ProtoForge 使用手册</h1>
 <blockquote>
-<p>版本 v0.14.0 ｜ 2026-09-28 ｜ 适用于 Windows（Linux/macOS 同理）<br />
+<p>版本 v0.15.0 ｜ 2026-09-29 ｜ 适用于 Windows（Linux/macOS 同理）<br />
 ProtoForge 是一个 Wireshark Lua 解析器（dissector）生成器：声明式定义私有二进制协议，<br />
 一键生成完整 Lua 解析器、一键部署进 Wireshark、内置测试台免抓包验证。</p>
 </blockquote>
@@ -126,15 +126,22 @@ ProtoForge 是一个 Wireshark Lua 解析器（dissector）生成器：声明式
 </ul>
 </li>
 <li><a href="#9-命令行cli参考">9. 命令行（CLI）参考</a></li>
-<li><a href="#10-部署与-wireshark-版本兼容">10. 部署与 Wireshark 版本兼容</a><ul>
-<li><a href="#101-插件目录自动发现">10.1 插件目录（自动发现）</a></li>
-<li><a href="#102-版本兼容">10.2 版本兼容</a></li>
-<li><a href="#103-安装后不生效排查顺序">10.3 安装后不生效排查顺序</a></li>
+<li><a href="#10-ai-辅助生成协议定义">10. AI 辅助生成协议定义</a><ul>
+<li><a href="#101-两种入口">10.1 两种入口</a></li>
+<li><a href="#102-端点与密钥">10.2 端点与密钥</a></li>
+<li><a href="#103-自修复循环与效果预期">10.3 自修复循环与效果预期</a></li>
+<li><a href="#104-常见失败与处理">10.4 常见失败与处理</a></li>
 </ul>
 </li>
-<li><a href="#11-故障排查-faq">11. 故障排查 FAQ</a></li>
-<li><a href="#12-授权与合规">12. 授权与合规</a></li>
-<li><a href="#13-路线图与已知限制">13. 路线图与已知限制</a></li>
+<li><a href="#11-部署与-wireshark-版本兼容">11. 部署与 Wireshark 版本兼容</a><ul>
+<li><a href="#111-插件目录自动发现">11.1 插件目录（自动发现）</a></li>
+<li><a href="#112-版本兼容">11.2 版本兼容</a></li>
+<li><a href="#113-安装后不生效排查顺序">11.3 安装后不生效排查顺序</a></li>
+</ul>
+</li>
+<li><a href="#12-故障排查-faq">12. 故障排查 FAQ</a></li>
+<li><a href="#13-授权与合规">13. 授权与合规</a></li>
+<li><a href="#14-路线图与已知限制">14. 路线图与已知限制</a></li>
 </ul>
 </div>
 <hr />
@@ -641,13 +648,94 @@ python -m protoforge verify out/smsp.lua --pcap examples/demo.pcap --port 5566
 # 部署（--dir 省略时自动发现 Wireshark 个人插件目录）
 python -m protoforge deploy out/smsp.lua --name smsp [--dir &quot;路径&quot;]
 
+# AI 生成协议定义（描述 → JSON，详见第 10 节）
+python -m protoforge ai --describe &quot;协议描述…&quot; -o myproto.json
+
 # 内置端到端自检
 python -m protoforge selftest
 </code></pre>
 <p>退出码：0=成功；1=有 FAIL 帧/无匹配帧；2=参数或加载错误。CI 友好。</p>
 <hr />
-<h2 id="10-部署与-wireshark-版本兼容">10. 部署与 Wireshark 版本兼容</h2>
-<h3 id="101-插件目录自动发现">10.1 插件目录（自动发现）</h3>
+<h2 id="10-ai-辅助生成协议定义">10. AI 辅助生成协议定义</h2>
+<p>v0.15.0 新增。把一段自然语言协议描述（中英皆可，可选附十六进制样本帧）交给大模型，<br />
+生成 ProtoForge JSON 定义；<strong>校验不过的错误会自动回喂给模型修复，直到通过或达到轮数上限</strong>。<br />
+生成的是"定义"而不是最终 Lua——它要过 §5/§6 的全量校验，再走常规的生成/测试台/部署流程，<br />
+正确性由工具链保证，不靠模型自觉。</p>
+<h3 id="101-两种入口">10.1 两种入口</h3>
+<ul>
+<li><strong>GUI</strong>：菜单 文件 → AI 生成协议定义…；描述框、样本框、端点/模型/key，生成过程逐行回显，<br />
+  成功后自动载入主窗口（记得在字段结构里人工核对一遍再生成 Lua）</li>
+<li><strong>CLI</strong>：</li>
+</ul>
+<pre><code class="language-bash">python -m protoforge ai --describe-file desc.txt --hex &quot;5a5a1101...&quot; -o myproto.json
+python -m protoforge generate myproto.json -o myproto.lua
+</code></pre>
+<h3 id="102-端点与密钥">10.2 端点与密钥</h3>
+<p>任何 OpenAI 兼容 <code>/chat/completions</code> 端点都可用：</p>
+<table>
+<thead>
+<tr>
+<th>来源</th>
+<th>端点示例</th>
+<th>key</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>本地 Ollama</td>
+<td><code>http://127.0.0.1:11434/v1</code></td>
+<td>留空</td>
+</tr>
+<tr>
+<td>GLM / DeepSeek / OpenAI 等</td>
+<td>各自的 OpenAI 兼容地址</td>
+<td>必填</td>
+</tr>
+</tbody>
+</table>
+<p>配置优先级：命令行/GUI 填写 &gt; 环境变量（<code>PROTOFORGE_AI_ENDPOINT/_MODEL/_API_KEY</code>）&gt;<br />
+设置文件。GUI 生成成功后自动把端点/模型/key 存到 <code>~/.protoforge/ai.json</code>。<br />
+<strong>隐私边界</strong>：请求只发往你自己配置的端点；提示词只包含你粘贴的描述与样本；<br />
+工具本身无遥测。key 在设置文件中是明文，请自行保管好机器。</p>
+<h3 id="103-自修复循环与效果预期">10.3 自修复循环与效果预期</h3>
+<p>最多 N 轮（GUI 默认 3，CLI <code>--max-rounds</code>）：每轮把 <code>validate()</code> 的全部错误原文回喂模型。<br />
+实测预期，请按此设定心理阈值：</p>
+<ul>
+<li><strong>7B 级本地小模型</strong>（如 qwen3:4b）：结构能对（帧头/分支/绑定），细节常丢（位域拆分、<br />
+  长度字段）；若第 1 轮"找不到 JSON"，多半是模型上下文太短截断了输出，换更大上下文模型</li>
+<li><strong>旗舰级模型</strong>（27B+/云端）：多数常见协议形态可一次或一轮修复后通过</li>
+<li>生成结果<strong>必须人工核对</strong>：AI 负责"填表"，工具负责"表合法"，语义对不对仍由你判断</li>
+</ul>
+<h3 id="104-常见失败与处理">10.4 常见失败与处理</h3>
+<table>
+<thead>
+<tr>
+<th>现象</th>
+<th>处理</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>无法连接 AI 端点</code></td>
+<td>端点地址/端口不对，或服务未启动（Ollama 先 <code>ollama serve</code>）</td>
+</tr>
+<tr>
+<td><code>接口返回 HTTP 401/403</code></td>
+<td>key 错误或无权限</td>
+</tr>
+<tr>
+<td>反复找不到 JSON</td>
+<td>换上下文更长的模型；或降低描述复杂度、拆成多轮对话式修改</td>
+</tr>
+<tr>
+<td>校验错误几轮不收敛</td>
+<td>把报错字段对应的描述写得更明确（长度、字节序、分支条件）</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="11-部署与-wireshark-版本兼容">11. 部署与 Wireshark 版本兼容</h2>
+<h3 id="111-插件目录自动发现">11.1 插件目录（自动发现）</h3>
 <table>
 <thead>
 <tr>
@@ -672,13 +760,13 @@ python -m protoforge selftest
 </table>
 <p><strong>Lua 脚本放目录根</strong>（不进 <code>4.x</code> 版本子目录）——官方口径：大版本升级不丢插件。<br />
 卸载 = 删除对应 <code>.lua</code> 文件（部署对话框有卸载按钮）。</p>
-<h3 id="102-版本兼容">10.2 版本兼容</h3>
+<h3 id="112-版本兼容">11.2 版本兼容</h3>
 <ul>
 <li>生成代码面向 <strong>Wireshark 4.4+</strong>（Lua 5.3/5.4，原生位运算）</li>
 <li>4.4.0 移除了 Lua 5.1/5.2 支持（有破坏性变更先例）；若你们公司还在 3.x，需评估后再用</li>
 <li>部署对话框会显示检测到的 tshark 版本；无 tshark 也可正常部署（只是无法本地验证）</li>
 </ul>
-<h3 id="103-安装后不生效排查顺序">10.3 安装后不生效排查顺序</h3>
+<h3 id="113-安装后不生效排查顺序">11.3 安装后不生效排查顺序</h3>
 <ol>
 <li>完全退出 Wireshark 再重开（包括托盘）</li>
 <li>「帮助 → 关于 Wiireshark → 文件夹」确认个人插件目录路径与部署目标一致</li>
@@ -686,7 +774,7 @@ python -m protoforge selftest
 <li>用 <code>tshark -v</code> 确认版本 ≥ 4.4</li>
 </ol>
 <hr />
-<h2 id="11-故障排查-faq">11. 故障排查 FAQ</h2>
+<h2 id="12-故障排查-faq">12. 故障排查 FAQ</h2>
 <p><strong>Q1：状态栏提示「定义问题」，但我看不出哪里错？</strong><br />
 按第 5.7 节对照表排查；一次只修第一个错误（后面的可能是连锁）。</p>
 <p><strong>Q2：测试台树里值显示和预期差 16 倍/256 倍？</strong><br />
@@ -705,12 +793,12 @@ python -m protoforge selftest
 <p><strong>Q6：想解析的协议有「按长度字段跳过的变长 blob」？</strong><br />
 用 <code>length_from</code>（v0.10 起支持）：string/bytes 按引用字段的字节数定长，数组按<br />
 「区域字节数 ÷ 元素尺寸」计数；越界会自动钳制并挂 Length mismatch 告警。<br />
-注意 <code>length_from</code> 数组的元素必须全为定长字段（变长元素在路线图中，见第 13 节）。</p>
+注意 <code>length_from</code> 数组的元素必须全为定长字段（变长元素在路线图中，见第 14 节）。</p>
 <p><strong>Q7：生成的 Lua 我能改吗？</strong><br />
 能跑，但下次生成会覆盖。正确姿势是改协议定义。生成物头部已声明 GPLv2+，<br />
 你可以自由分发它。</p>
 <hr />
-<h2 id="12-授权与合规">12. 授权与合规</h2>
+<h2 id="13-授权与合规">13. 授权与合规</h2>
 <ul>
 <li><strong>生成的 <code>.lua</code> 文件</strong>：使用 Wireshark Lua 绑定，按官方 wiki「Beware the GPL」口径<br />
   以 <strong>GPLv2+</strong> 分发。你在产品里使用/分发生成物时遵守 GPL 即可（内部使用无额外义务）。</li>
@@ -720,10 +808,15 @@ python -m protoforge selftest
   的兼容性表述，并注明非官方、与 Wireshark 基金会无关。</li>
 </ul>
 <hr />
-<h2 id="13-路线图与已知限制">13. 路线图与已知限制</h2>
-<p>v0.10–v0.14 已新增（此前为限制项）：</p>
+<h2 id="14-路线图与已知限制">14. 路线图与已知限制</h2>
+<p>v0.10–v0.15 已新增（此前为限制项）：</p>
 <ul>
-<li><strong>小端字节序</strong>：协议级默认 + 字段级覆盖（<code>meta.byte_order</code> / 字段 <code>byte_order</code>）</li>
+<li>
+<p><strong>AI 辅助生成</strong>（v0.15）：自然语言描述 → 协议定义 JSON，校验错误自修复循环（见第 10 节）</p>
+</li>
+<li>
+<p><strong>小端字节序</strong>：协议级默认 + 字段级覆盖（<code>meta.byte_order</code> / 字段 <code>byte_order</code>）</p>
+</li>
 <li><strong>变长字段/数组</strong>：string/bytes/数组支持 <code>length_from</code>（按字节区域长度，越界自动钳制并告警）</li>
 <li><strong>终止符字符串</strong>：string 支持 <code>terminated_by</code>（如 0x00 结尾，内容显示不含终止符）</li>
 <li><strong>校验和家族</strong>：CRC-16/CCITT-FALSE 之外新增 MODBUS（低字节在前）、XMODEM、SUM8、SUM16</li>
@@ -763,9 +856,14 @@ python -m protoforge selftest
 <td>借力其协议描述生态</td>
 </tr>
 <tr>
-<td>AI 辅助生成</td>
+<td>TLV 变长元素数组（schema v1.1）</td>
 <td>路线图</td>
-<td>"spec → Lua" 的 prompt 链路已可行，产品化待定</td>
+<td>数组元素内可用 length_from/switch——真实协议最常见的 TLV 形态</td>
+</tr>
+<tr>
+<td>TCP 解段（desegment）</td>
+<td>路线图</td>
+<td>按 payloadLen 请求 Wireshark 重组 + 测试台 TCP 流重组，为 SOME/IP 类 TCP 协议铺路</td>
 </tr>
 <tr>
 <td>大端位域之外的位序自定义</td>
@@ -781,7 +879,7 @@ python -m protoforge selftest
 <li>详见 <code>docs/PROTOCOL_SCHEMA.md</code> 的校验规则清单与字段说明</li>
 </ul>
 <hr />
-<p><em>ProtoForge v0.14.0 · 本手册随源码交付于 <code>docs/USER_MANUAL.md</code> · 截图由 <code>tools/make_screens.py</code> 生成</em></p>
+<p><em>ProtoForge v0.15.0 · 本手册随源码交付于 <code>docs/USER_MANUAL.md</code> · 截图由 <code>tools/make_screens.py</code> 生成</em></p>
 </main>
 </body>
 </html>

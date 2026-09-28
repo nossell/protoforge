@@ -61,6 +61,11 @@ registration for protocols that run on arbitrary ports. There's also a built-in 
 bench that runs the generated Lua in a mock Wireshark engine, so you can check the parse
 tree from a hex string without touching a real capture.
 
+There's also an AI-assist path (new in v0.15): paste a plain-language description of your
+protocol and it drafts the definition JSON for you — validation errors are fed back to the
+model for self-repair, and the definition still has to pass the same validator before it
+can compile. Works with any OpenAI-compatible endpoint, including a local Ollama.
+
 It targets Wireshark 4.4+ and comes with two worked examples (JSON → dissector → pcap),
 pcap/pcapng input in the test bench, and a test suite that drives the generated code
 through real tshark — including the mock/real API traps I hit along the way.
@@ -68,7 +73,7 @@ through real tshark — including the mock/real API traps I hit along the way.
 Repo: https://github.com/nossell/protoforge
 Docs: https://github.com/nossell/protoforge/blob/main/docs/USER_MANUAL.md
 
-It's at v0.14 and I'd love feedback on the definition format — especially from folks
+It's at v0.15 and I'd love feedback on the definition format — especially from folks
 who dissect automotive or IoT protocols: what's missing that would make you actually use
 it instead of hand-writing?
 ```
@@ -90,7 +95,9 @@ CCITT-FALSE/MODBUS/XMODEM, SUM8/16) validated through Wireshark's expert system,
 NUL-terminated strings, and heuristic registration for protocols that don't live on a
 fixed port. It also embeds a mock Wireshark engine (lupa) that really executes the
 generated Lua, so you verify the parse tree from a hex string without installing
-anything, and a CLI for CI.
+anything, and a CLI for CI. An AI-assist path drafts the definition from a plain-language
+description and runs a validation-feedback loop until it compiles (bring your own
+OpenAI-compatible endpoint — a local Ollama works).
 
 An end-to-end example is in the repo: a fictional sensor protocol, its definition, the
 generated dissector, and a pcap you can dissect after a one-command install.
@@ -112,7 +119,8 @@ Happy to answer questions about the generator design and the mock-engine approac
 dissector，位域/枚举/条件分支（可嵌套 + default 兜底）/变长字段与数组/大小端/终止符
 字符串/校验和家族（CRC-16 CCITT-FALSE、MODBUS、XMODEM、SUM8/16）全支持，还能注册
 启发式解析器（端口不固定也能认），并内置一个不用装 Wireshark 的测试引擎（lupa），
-粘段 hex 就能看解析树，pcap/pcapng 都能喂。带 CLI，CI 里也能跑。
+粘段 hex 就能看解析树，pcap/pcapng 都能喂。带 CLI，CI 里也能跑。最新版还加了 AI 辅助：
+贴一段自然语言协议描述，自动起草定义 JSON（校验不过的错误会回喂模型自修复）。
 
 仓库：https://github.com/nossell/protoforge
 示例协议 + demo.pcap 在 examples/ 下，装完用 Wireshark 打开就能看效果。

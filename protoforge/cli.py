@@ -159,6 +159,59 @@ SELFTEST_SPEC = {
 }
 
 
+def cmd_ai(args) -> int:
+    import os
+
+    from .core import aigen
+
+    description = (args.describe or "").strip()
+    if args.describe_file:
+        try:
+            with open(args.describe_file, "r", encoding="utf-8") as fh:
+                description = fh.read()
+        except OSError as e:
+            print(f"[错误] 读取描述文件失败: {e}", file=sys.stderr)
+            return 2
+    if not description.strip():
+        print("[错误] 需要 --describe 或 --describe-file 提供协议描述", file=sys.stderr)
+        return 2
+    samples = ""
+    if args.hex:
+        samples = args.hex
+    elif args.samples_file:
+        try:
+            with open(args.samples_file, "r", encoding="utf-8") as fh:
+                samples = fh.read()
+        except OSError as e:
+            print(f"[错误] 读取样本文件失败: {e}", file=sys.stderr)
+            return 2
+
+    cfg = aigen.load_settings()
+    if args.endpoint:
+        cfg.endpoint = args.endpoint
+    if args.model:
+        cfg.model = args.model
+    if args.api_key:
+        cfg.api_key = args.api_key
+
+    result = aigen.generate_with_repair(
+        description, samples, cfg, max_rounds=args.max_rounds, log=lambda s: print(s))
+    if not result.ok or result.protocol is None:
+        print(f"[错误] AI 生成失败：{result.error}", file=sys.stderr)
+        print("提示：可换更清晰的描述 / 提供十六进制样本 / 调大 --max-rounds", file=sys.stderr)
+        return 2
+
+    p = result.protocol
+    out = args.output or f"{p.name}.json"
+    parent = os.path.dirname(os.path.abspath(out))
+    os.makedirs(parent, exist_ok=True)
+    from .core.jsonio import save_protocol
+    save_protocol(p, out)
+    print(f"[OK] 第 {result.rounds} 轮通过校验，定义已保存：{out}")
+    print(f"下一步：python -m protoforge generate \"{out}\" -o {p.name}.lua")
+    return 0
+
+
 def cmd_selftest(args) -> int:
     import struct
     from .core.generator import generate_lua
@@ -217,6 +270,18 @@ def build_parser() -> argparse.ArgumentParser:
     d.add_argument("--name", required=True, help="插件名（生成 <name>.lua）")
     d.add_argument("--dir", default=None, help="目标插件目录（默认自动发现）")
     d.set_defaults(func=cmd_deploy)
+
+    a = sub.add_parser("ai", help="AI 生成协议定义 JSON（OpenAI 兼容端点，含自修复校验循环）")
+    a.add_argument("--describe", help="协议描述文本（自然语言，中英皆可）")
+    a.add_argument("--describe-file", help="描述文本文件（与 --describe 二选一）")
+    a.add_argument("--hex", help="可选：样本帧十六进制（辅助推断字段布局）")
+    a.add_argument("--samples-file", help="可选：样本帧十六进制文件（每行一帧）")
+    a.add_argument("-o", "--output", default=None, help="输出 .json 路径（默认 <协议名>.json）")
+    a.add_argument("--endpoint", default=None, help="OpenAI 兼容端点（默认读设置：本地 Ollama）")
+    a.add_argument("--model", default=None, help="模型名（默认读设置）")
+    a.add_argument("--api-key", default=None, help="API key（也可用环境变量 PROTOFORGE_AI_API_KEY）")
+    a.add_argument("--max-rounds", type=int, default=3, help="校验自修复最大轮数（默认 3）")
+    a.set_defaults(func=cmd_ai)
 
     s = sub.add_parser("selftest", help="内置端到端自检")
     s.set_defaults(func=cmd_selftest)

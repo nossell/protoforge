@@ -4,6 +4,8 @@
 
 English (this file) | [简体中文](README.md)
 
+[![CI](https://github.com/nossell/protoforge/actions/workflows/ci.yml/badge.svg)](https://github.com/nossell/protoforge/actions/workflows/ci.yml)
+
 ![Main window](docs/screenshots/main_window.png)
 
 Describe your private binary protocol once (GUI table / JSON / CSV), and get a full
@@ -39,13 +41,20 @@ result is verified before it ever touches a real capture.
 
 ## Features
 
-- Types: uint8-32 / int8-32 / fixed-length string / bytes / packed bitfields (MSB-first) / enums
-- Structures: switch payloads, fixed-count and count-from variable arrays, nesting
-- Checks: CRC-16/CCITT-FALSE with Expert Info, magic constants, payload length semantics,
-  short-packet and trailing-byte guards
-- Test bench: hex or pcap input, real Lua execution via lupa, tree + byte-highlight linkage
+- AI-assisted authoring: describe the protocol in plain language (+ optional hex samples),
+  get a validated definition JSON — validation errors are fed back to the LLM for
+  self-repair. Works with any OpenAI-compatible endpoint (local Ollama, GLM, DeepSeek, ...);
+  keys stay on your machine
+- Types: uint8-32 / int8-32 / fixed-length and variable-length string / bytes / packed
+  bitfields (MSB-first) / enums / big or little endian (protocol default + per-field override)
+- Structures: switch payloads (nested, with default branch), fixed-count / count-from /
+  region-length arrays, NUL-terminated strings
+- Checks: checksum family (CRC-16 CCITT-FALSE / MODBUS / XMODEM / SUM8 / SUM16) with Expert
+  Info, magic constants, payload length semantics, short-packet and trailing-byte guards
+- Test bench: hex / pcap / pcapng input, real Lua execution via lupa, tree + byte-highlight
+  linkage; heuristic registration for protocols without a fixed port
 - Deploy: cross-platform plugin directory discovery, install/uninstall, tshark detection
-- CLI: `generate / verify / deploy / selftest` (CI-friendly exit codes)
+- CLI: `generate / verify / deploy / ai / selftest` (CI-friendly exit codes)
 
 ## Compatibility & licensing
 
@@ -57,13 +66,14 @@ result is verified before it ever touches a real capture.
 
 ## Status
 
-v0.14.0 — five feature rounds on top of the first release: big/little endian (protocol
-and field level), variable-length fields/arrays (`length_from`), a checksum family
-(CRC-16 CCITT-FALSE / MODBUS / XMODEM, SUM8/16), NUL-terminated strings, nested switches
-with a default branch, pcapng input, multiple udp+tcp bindings, and heuristic
-registration. 163 tests (unit / integration / GUI offscreen / real-tshark E2E, including
-a dedicated suite that drives every feature round through real tshark). Roadmap and
-known limitations: see `docs/USER_MANUAL.md` (section 13).
+v0.15.0 — AI-assisted definition generation (description → validated JSON with a
+self-repair loop). Earlier rounds added big/little endian (protocol and field level),
+variable-length fields/arrays (`length_from`), a checksum family (CRC-16 CCITT-FALSE /
+MODBUS / XMODEM, SUM8/16), NUL-terminated strings, nested switches with a default branch,
+pcapng input, multiple udp+tcp bindings, and heuristic registration. 180 tests (unit /
+integration / GUI offscreen / real-tshark E2E, including a dedicated suite that drives
+every feature round through real tshark). Roadmap and known limitations: see
+`docs/USER_MANUAL.md` (section 14).
 
 ## Commercial & support
 

@@ -1,7 +1,7 @@
 # ProtoForge 设计说明书（Design Spec）
 
 > 版本 v0.14.0 ｜ 2026-09-28 ｜ 由 spike（一次性可行性原型，已归档）升级为完整产品
-> v0.10–v0.14 五轮迭代增补见 §4.3（原始 v1.0 范围见 §4.1，其中「Won't」项有两项已提前落地）
+> v0.10–v0.14 五轮迭代增补见 §4.3，v0.15 AI 辅助生成见 §4.4（原始 v1.0 范围见 §4.1，其中「Won't」项已有三项提前落地）
 > 背景：市场调研报告《Wireshark 解析器生成器-可行性与市场分析》（随项目归档）
 
 ## 1. 产品定位
@@ -97,7 +97,19 @@ AI 辅助生成与 Kaitai 导入仍为路线图项。）
    以首字段 const（数值/位域）快速判别，命中才接管报文
 9. **过短帧语义变更**：由「返回 0 交给 Data」改为「认领该帧 + expert 报错」——
    真机上返回 0 会连同 expert 一起被丢弃（v0.14 审查实测确认）
-10. **测试**：新增真实 tshark 高级 E2E（逐特性验证）与审查修复回归；当前 163 例
+10. **测试**：新增真实 tshark 高级 E2E（逐特性验证）与审查修复回归
+
+### 4.4 v0.15 增补：AI 辅助生成
+
+- 定位：AI 负责"填表"（起草协议定义 JSON），工具链负责"表合法 + Lua 正确"——
+  对"直接让 ChatGPT 写 dissector"路线的产品化防御
+- `core/aigen.py`：OpenAI 兼容 /chat/completions 客户端（stdlib urllib，无新依赖）；
+  系统提示词内嵌完整 schema+校验契约；自修复循环（validate 错误原文回喂，默认 3 轮）；
+  设置文件 `~/.protoforge/ai.json`（端点/模型/key，key 明文本机保存）+ 环境变量覆盖
+- 入口：CLI `protoforge ai --describe/-f --hex/-o`；GUI「文件 → AI 生成协议定义…」
+  （QThread 异步，log 逐行回显，成功即载入主窗口）
+- 隐私边界：请求只发往用户配置的端点；提示词只含用户粘贴的描述与样本；无遥测
+- 测试：test_aigen.py 全离线（注入假 LLM，17 例）；真实 LLM 狗粮验证用本机 Ollama
 
 ## 5. 关键设计决策记录
 
@@ -128,6 +140,7 @@ AI 辅助生成与 Kaitai 导入仍为路线图项。）
 | E2E | test_e2e_tshark_advanced.py | 真机 tshark 逐特性：小端/字段级大端覆盖、MODBUS 校验和、终止符与 (unterminated)、嵌套 switch 三级分支与 default、length_from 字符串/数组、启发式在未绑定端口接管 |
 | 回归 | test_r1…r5_*.py | 五轮迭代各自特性回归（字节序/变长、校验和/终止符、嵌套 switch/default、pcapng/多绑定、启发式/车载示例） |
 | 回归 | test_review_fixes_v014.py | 发布前独立审查发现逐条固化（崩溃/死循环/GUI 数据丢失/异常类型） |
+| 单元/GUI | test_aigen.py | AI 辅助生成：prompt/JSON 提取/自修复循环/设置读写/对话框（注入假 LLM，全程离线） |
 
 ## 7. 交付物清单
 

@@ -1,6 +1,6 @@
 # ProtoForge 使用手册
 
-> 版本 v0.14.0 ｜ 2026-09-28 ｜ 适用于 Windows（Linux/macOS 同理）
+> 版本 v0.15.0 ｜ 2026-09-29 ｜ 适用于 Windows（Linux/macOS 同理）
 > ProtoForge 是一个 Wireshark Lua 解析器（dissector）生成器：声明式定义私有二进制协议，
 > 一键生成完整 Lua 解析器、一键部署进 Wireshark、内置测试台免抓包验证。
 
@@ -17,10 +17,11 @@
 7. [CSV 格式参考](#7-csv-格式参考)
 8. [测试台使用指南](#8-测试台使用指南)
 9. [命令行（CLI）参考](#9-命令行cli参考)
-10. [部署与 Wireshark 版本兼容](#10-部署与-wireshark-版本兼容)
-11. [故障排查 FAQ](#11-故障排查-faq)
-12. [授权与合规](#12-授权与合规)
-13. [路线图与已知限制](#13-路线图与已知限制)
+10. [AI 辅助生成协议定义](#10-ai-辅助生成协议定义)
+11. [部署与 Wireshark 版本兼容](#11-部署与-wireshark-版本兼容)
+12. [故障排查 FAQ](#12-故障排查-faq)
+13. [授权与合规](#13-授权与合规)
+14. [路线图与已知限制](#14-路线图与已知限制)
 
 ---
 
@@ -423,6 +424,9 @@ python -m protoforge verify out/smsp.lua --pcap examples/demo.pcap --port 5566
 # 部署（--dir 省略时自动发现 Wireshark 个人插件目录）
 python -m protoforge deploy out/smsp.lua --name smsp [--dir "路径"]
 
+# AI 生成协议定义（描述 → JSON，详见第 10 节）
+python -m protoforge ai --describe "协议描述…" -o myproto.json
+
 # 内置端到端自检
 python -m protoforge selftest
 ```
@@ -431,9 +435,62 @@ python -m protoforge selftest
 
 ---
 
-## 10. 部署与 Wireshark 版本兼容
+## 10. AI 辅助生成协议定义
 
-### 10.1 插件目录（自动发现）
+v0.15.0 新增。把一段自然语言协议描述（中英皆可，可选附十六进制样本帧）交给大模型，
+生成 ProtoForge JSON 定义；**校验不过的错误会自动回喂给模型修复，直到通过或达到轮数上限**。
+生成的是"定义"而不是最终 Lua——它要过 §5/§6 的全量校验，再走常规的生成/测试台/部署流程，
+正确性由工具链保证，不靠模型自觉。
+
+### 10.1 两种入口
+
+- **GUI**：菜单 文件 → AI 生成协议定义…；描述框、样本框、端点/模型/key，生成过程逐行回显，
+  成功后自动载入主窗口（记得在字段结构里人工核对一遍再生成 Lua）
+- **CLI**：
+
+```bash
+python -m protoforge ai --describe-file desc.txt --hex "5a5a1101..." -o myproto.json
+python -m protoforge generate myproto.json -o myproto.lua
+```
+
+### 10.2 端点与密钥
+
+任何 OpenAI 兼容 `/chat/completions` 端点都可用：
+
+| 来源 | 端点示例 | key |
+|---|---|---|
+| 本地 Ollama | `http://127.0.0.1:11434/v1` | 留空 |
+| GLM / DeepSeek / OpenAI 等 | 各自的 OpenAI 兼容地址 | 必填 |
+
+配置优先级：命令行/GUI 填写 > 环境变量（`PROTOFORGE_AI_ENDPOINT/_MODEL/_API_KEY`）>
+设置文件。GUI 生成成功后自动把端点/模型/key 存到 `~/.protoforge/ai.json`。
+**隐私边界**：请求只发往你自己配置的端点；提示词只包含你粘贴的描述与样本；
+工具本身无遥测。key 在设置文件中是明文，请自行保管好机器。
+
+### 10.3 自修复循环与效果预期
+
+最多 N 轮（GUI 默认 3，CLI `--max-rounds`）：每轮把 `validate()` 的全部错误原文回喂模型。
+实测预期，请按此设定心理阈值：
+
+- **7B 级本地小模型**（如 qwen3:4b）：结构能对（帧头/分支/绑定），细节常丢（位域拆分、
+  长度字段）；若第 1 轮"找不到 JSON"，多半是模型上下文太短截断了输出，换更大上下文模型
+- **旗舰级模型**（27B+/云端）：多数常见协议形态可一次或一轮修复后通过
+- 生成结果**必须人工核对**：AI 负责"填表"，工具负责"表合法"，语义对不对仍由你判断
+
+### 10.4 常见失败与处理
+
+| 现象 | 处理 |
+|---|---|
+| `无法连接 AI 端点` | 端点地址/端口不对，或服务未启动（Ollama 先 `ollama serve`） |
+| `接口返回 HTTP 401/403` | key 错误或无权限 |
+| 反复找不到 JSON | 换上下文更长的模型；或降低描述复杂度、拆成多轮对话式修改 |
+| 校验错误几轮不收敛 | 把报错字段对应的描述写得更明确（长度、字节序、分支条件） |
+
+---
+
+## 11. 部署与 Wireshark 版本兼容
+
+### 11.1 插件目录（自动发现）
 
 | 平台 | 个人插件目录 |
 |---|---|
@@ -444,13 +501,13 @@ python -m protoforge selftest
 **Lua 脚本放目录根**（不进 `4.x` 版本子目录）——官方口径：大版本升级不丢插件。
 卸载 = 删除对应 `.lua` 文件（部署对话框有卸载按钮）。
 
-### 10.2 版本兼容
+### 11.2 版本兼容
 
 - 生成代码面向 **Wireshark 4.4+**（Lua 5.3/5.4，原生位运算）
 - 4.4.0 移除了 Lua 5.1/5.2 支持（有破坏性变更先例）；若你们公司还在 3.x，需评估后再用
 - 部署对话框会显示检测到的 tshark 版本；无 tshark 也可正常部署（只是无法本地验证）
 
-### 10.3 安装后不生效排查顺序
+### 11.3 安装后不生效排查顺序
 
 1. 完全退出 Wireshark 再重开（包括托盘）
 2. 「帮助 → 关于 Wiireshark → 文件夹」确认个人插件目录路径与部署目标一致
@@ -459,7 +516,7 @@ python -m protoforge selftest
 
 ---
 
-## 11. 故障排查 FAQ
+## 12. 故障排查 FAQ
 
 **Q1：状态栏提示「定义问题」，但我看不出哪里错？**
 按第 5.7 节对照表排查；一次只修第一个错误（后面的可能是连锁）。
@@ -484,7 +541,7 @@ python -m protoforge selftest
 **Q6：想解析的协议有「按长度字段跳过的变长 blob」？**
 用 `length_from`（v0.10 起支持）：string/bytes 按引用字段的字节数定长，数组按
 「区域字节数 ÷ 元素尺寸」计数；越界会自动钳制并挂 Length mismatch 告警。
-注意 `length_from` 数组的元素必须全为定长字段（变长元素在路线图中，见第 13 节）。
+注意 `length_from` 数组的元素必须全为定长字段（变长元素在路线图中，见第 14 节）。
 
 **Q7：生成的 Lua 我能改吗？**
 能跑，但下次生成会覆盖。正确姿势是改协议定义。生成物头部已声明 GPLv2+，
@@ -492,7 +549,7 @@ python -m protoforge selftest
 
 ---
 
-## 12. 授权与合规
+## 13. 授权与合规
 
 - **生成的 `.lua` 文件**：使用 Wireshark Lua 绑定，按官方 wiki「Beware the GPL」口径
   以 **GPLv2+** 分发。你在产品里使用/分发生成物时遵守 GPL 即可（内部使用无额外义务）。
@@ -503,9 +560,11 @@ python -m protoforge selftest
 
 ---
 
-## 13. 路线图与已知限制
+## 14. 路线图与已知限制
 
-v0.10–v0.14 已新增（此前为限制项）：
+v0.10–v0.15 已新增（此前为限制项）：
+
+- **AI 辅助生成**（v0.15）：自然语言描述 → 协议定义 JSON，校验错误自修复循环（见第 10 节）
 
 - **小端字节序**：协议级默认 + 字段级覆盖（`meta.byte_order` / 字段 `byte_order`）
 - **变长字段/数组**：string/bytes/数组支持 `length_from`（按字节区域长度，越界自动钳制并告警）
@@ -524,7 +583,8 @@ v1 仍未支持（路线图）：
 | switch 嵌套于 array 元素 | 路线图 | 元素内仅允许定长字段 |
 | pcapng 写入 | 路线图 | 测试台只读 |
 | Kaitai .ksy 导入 | 路线图 | 借力其协议描述生态 |
-| AI 辅助生成 | 路线图 | "spec → Lua" 的 prompt 链路已可行，产品化待定 |
+| TLV 变长元素数组（schema v1.1） | 路线图 | 数组元素内可用 length_from/switch——真实协议最常见的 TLV 形态 |
+| TCP 解段（desegment） | 路线图 | 按 payloadLen 请求 Wireshark 重组 + 测试台 TCP 流重组，为 SOME/IP 类 TCP 协议铺路 |
 | 大端位域之外的位序自定义 | 路线图 | 位域按 MSB 分配 |
 
 已知限制：
@@ -535,4 +595,4 @@ v1 仍未支持（路线图）：
 
 ---
 
-*ProtoForge v0.14.0 · 本手册随源码交付于 `docs/USER_MANUAL.md` · 截图由 `tools/make_screens.py` 生成*
+*ProtoForge v0.15.0 · 本手册随源码交付于 `docs/USER_MANUAL.md` · 截图由 `tools/make_screens.py` 生成*

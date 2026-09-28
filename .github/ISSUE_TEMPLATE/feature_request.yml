@@ -1,0 +1,25 @@
+name: Feature request
+description: Suggest a schema capability, generator feature, or workflow improvement
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: protocol-pattern
+    attributes:
+      label: Protocol pattern you need to express
+      description: |
+        Describe the on-wire structure that today's schema cannot express (or expresses painfully),
+        e.g. "array of TLV elements where each element is type+len+value".
+    validations:
+      required: true
+  - type: textarea
+    id: definition-today
+    attributes:
+      label: What you tried in today's schema
+      description: The closest JSON you managed, and where it falls short or gets rejected.
+  - type: checkboxes
+    id: willing
+    attributes:
+      label: Contribution
+      options:
+        - label: I can provide sample captures / protocol docs for this pattern
+        - label: I am willing to help test a preview build
